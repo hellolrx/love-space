@@ -1,0 +1,6 @@
+# 发布目录（Cloudflare Pages 部署用，不含 .git），由手动复制生成，不纳入版本控制
+dist/
+
+# Wrangler 本地状态与缓存（由 Cloudflare CLI 自动生成）
+.wrangler/
+

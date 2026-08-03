@@ -3,30 +3,130 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>菜单占位</title>
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>两个人的菜单</title>
+    <meta name="theme-color" content="#f6f1e7">
+    <script>document.documentElement.classList.add('love-loading-pending');</script>
+    <script src="../shared/mobile-viewport.js?v=mobile-1" defer></script>
     <link rel="stylesheet" href="../load/loading.css?v=load-4">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=menu-ui-1">
     <script type="module" src="../load/boot.js?v=load-4"></script>
 </head>
 
 <body>
-    <a href="../../" class="back-home-btn" title="返回主页" aria-label="返回主页">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-            <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
-        </svg>
-    </a>
+    <main class="menu-app">
+        <header class="hero">
+            <img class="hero-photo" src="../home/assets/background/login.jpg" alt="" aria-hidden="true">
+            <div class="hero-shade"></div>
+            <a href="../../" class="back-home-btn" title="返回主页" aria-label="返回主页">
+                <svg viewBox="0 0 24 24" width="21" height="21" fill="currentColor" aria-hidden="true">
+                    <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
+                </svg>
+            </a>
+            <div class="hero-copy">
+                <p class="hero-kicker">OUR LITTLE KITCHEN</p>
+                <h1>两个人的菜单</h1>
+                <p>把想吃的、拿手的和值得再做一次的味道，都好好收在这里。</p>
+                <div class="hero-stats" aria-label="菜单统计">
+                    <span><strong id="dish-total">0</strong> 道菜</span>
+                    <span><strong id="selected-total">0</strong> 已点</span>
+                </div>
+            </div>
+        </header>
 
-    <main class="placeholder-page">
-        <section class="placeholder-panel">
-            <p class="eyebrow">布布悄悄说</p>
-            <h1>菜单</h1>
-            <p class="subtitle">一二呀，这个菜单页布布还在悄悄准备中，你先等等我嘛，很快就好啦。</p>
-            <div class="note-card">
-                布布正在开发中
+        <section class="menu-content">
+            <div class="content-heading">
+                <div>
+                    <p class="section-kicker">TODAY'S CHOICE</p>
+                    <h2>今天想吃什么？</h2>
+                </div>
+                <button id="manage-button" class="outline-button" type="button" aria-pressed="false">
+                    管理菜单
+                </button>
+            </div>
+
+            <div class="search-row">
+                <label class="search-box" for="dish-search">
+                    <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2"
+                        aria-hidden="true">
+                        <circle cx="11" cy="11" r="7"></circle>
+                        <path d="m20 20-3.6-3.6"></path>
+                    </svg>
+                    <input id="dish-search" type="search" placeholder="搜索菜名或食材" autocomplete="off">
+                </label>
+                <button id="surprise-button" class="surprise-button" type="button" title="随机推荐一道菜">
+                    <span aria-hidden="true">✦</span>
+                    随机
+                </button>
+            </div>
+
+            <nav id="category-list" class="category-list" aria-label="菜品分类"></nav>
+
+            <div class="list-toolbar">
+                <p id="result-summary">全部菜品</p>
+                <button id="add-dish-button" class="text-button" type="button">
+                    <span aria-hidden="true">＋</span> 新增菜品
+                </button>
+            </div>
+
+            <section id="dish-grid" class="dish-grid" aria-live="polite"></section>
+            <div id="empty-state" class="empty-state hidden">
+                <span aria-hidden="true">🍽️</span>
+                <h3>这里还没有菜</h3>
+                <p>换一个分类，或者先记录一道想吃的菜吧。</p>
             </div>
         </section>
+
+        <aside id="order-dock" class="order-dock" aria-label="当前点单" aria-live="polite">
+            <div class="order-icon" aria-hidden="true">🥣</div>
+            <div class="order-copy">
+                <strong><span id="dock-count">0</span> 份已加入</strong>
+                <span id="dock-summary">还没有选择菜品</span>
+            </div>
+            <button id="clear-order-button" type="button">清空</button>
+        </aside>
     </main>
+
+    <div id="dish-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="dish-modal-title">
+        <button class="modal-backdrop" type="button" data-role="close-modal" aria-label="关闭新增菜品弹窗"></button>
+        <section class="modal-sheet">
+            <div class="sheet-handle"></div>
+            <div class="sheet-heading">
+                <div>
+                    <p class="section-kicker">NEW RECIPE</p>
+                    <h2 id="dish-modal-title">记录一道菜</h2>
+                </div>
+                <button class="close-button" type="button" data-role="close-modal" aria-label="关闭">×</button>
+            </div>
+            <form id="dish-form">
+                <label class="form-field">
+                    <span>菜品名称</span>
+                    <input id="dish-name" name="name" type="text" maxlength="30" placeholder="例如：番茄牛腩" required>
+                </label>
+                <div class="form-grid">
+                    <label class="form-field">
+                        <span>分类</span>
+                        <select id="dish-category" name="category"></select>
+                    </label>
+                    <label class="form-field">
+                        <span>代表图标</span>
+                        <input id="dish-emoji" name="emoji" type="text" maxlength="4" value="🍲">
+                    </label>
+                </div>
+                <label class="form-field">
+                    <span>一句话介绍</span>
+                    <textarea id="dish-description" name="description" rows="3" maxlength="80"
+                        placeholder="记录口味、主要食材或适合什么时候吃"></textarea>
+                </label>
+                <p class="prototype-note">当前为前端原型，新增内容只在本次打开页面期间保留。</p>
+                <button class="primary-button" type="submit">加入菜单</button>
+            </form>
+        </section>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="script.js?v=menu-ui-1"></script>
 </body>
 
 </html>
