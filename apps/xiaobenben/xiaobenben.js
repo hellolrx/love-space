@@ -6,14 +6,14 @@ import {
     fetchSharedNotes,
     updateSharedNote
 } from '../shared/shared-notes-service.js';
+import { escapeAttribute, escapeHtml } from '../shared/html.js';
 
 const state = {
     notes: [],
     currentNickname: '',
     realtimeChannel: null,
     isRefreshing: false,
-    saveTimers: new Map(),
-    isMetaOpen: false
+    saveTimers: new Map()
 };
 
 const els = {
@@ -21,15 +21,6 @@ const els = {
     notesList: document.getElementById('notes-list'),
     newNoteInput: document.getElementById('new-note-input')
 };
-
-function escapeHtml(value) {
-    return String(value || '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
 
 function noteText(note) {
     return String(note.title || note.content || '').trim();
@@ -58,6 +49,49 @@ function sortNotes(notes) {
         const timeB = new Date(b.updated_at || b.created_at || 0).getTime();
         return timeB - timeA;
     });
+}
+
+function isRedeemNote(note) {
+    return note.note_type === 'redeem' || note.source_type === 'store_purchase';
+}
+
+function normalizedRedeemName(note) {
+    return noteText(note)
+        .replace(/^待兑现\s*[：:]\s*/u, '')
+        .normalize('NFKC')
+        .replace(/\s+/gu, ' ')
+        .trim();
+}
+
+function groupNotes(notes) {
+    const groups = [];
+    const redeemGroups = new Map();
+
+    sortNotes(notes).forEach((note) => {
+        if (!isRedeemNote(note)) {
+            groups.push({ key: `note:${note.id}`, notes: [note], isRedeem: false });
+            return;
+        }
+
+        const displayName = normalizedRedeemName(note) || '未命名兑换';
+        const key = `${note.status || 'active'}:${displayName.toLocaleLowerCase('zh-CN')}`;
+        const existing = redeemGroups.get(key);
+        if (existing) {
+            existing.notes.push(note);
+            return;
+        }
+
+        const group = {
+            key: `redeem:${key}`,
+            notes: [note],
+            isRedeem: true,
+            displayName
+        };
+        redeemGroups.set(key, group);
+        groups.push(group);
+    });
+
+    return groups;
 }
 
 function updateLocalNote(updated) {
@@ -136,69 +170,90 @@ async function createNoteFromInput() {
     });
 
     state.notes = [created, ...state.notes];
-    state.isMetaOpen = false;
     render();
     els.newNoteInput.focus();
 }
 
-function renderNote(note) {
+function renderNoteGroup(group) {
+    const note = group.notes[0];
     const isDone = note.status === 'done';
     const editor = note.updated_by_nickname || note.created_by_nickname || '未知';
     const time = formatMetaDate(note.updated_at || note.created_at);
+    const quantity = group.notes.length;
+    const title = group.isRedeem ? group.displayName : noteText(note);
+    const quantityMarkup = group.isRedeem && quantity > 1
+        ? `<span class="quantity-badge" aria-label="共 ${quantity} 份">×${quantity}</span>`
+        : '';
+    const contentMarkup = group.isRedeem
+        ? `<div class="note-title">${escapeHtml(title)}</div>`
+        : `<textarea class="note-input" rows="1" data-role="note-text" spellcheck="false">${escapeHtml(title)}</textarea>`;
+    const typeLabel = group.isRedeem ? '商店兑换' : '共同记录';
 
     return `
-        <article class="note-row-wrap ${state.isMetaOpen ? 'is-meta-open' : ''}" data-id="${note.id}">
-            <div class="note-meta-drawer" aria-hidden="${state.isMetaOpen ? 'false' : 'true'}">
-                <span class="meta-editor">${escapeHtml(editor)}</span>
-                <span class="meta-time">${escapeHtml(time)}</span>
-            </div>
-            <div class="note-row ${isDone ? 'is-done' : ''}">
-                <button class="check-button ${isDone ? 'is-done' : ''}" type="button" data-role="toggle-done"
-                    aria-label="${isDone ? '标记为未完成' : '标记为完成'}"></button>
-                <textarea class="note-input" rows="1" data-role="note-text" spellcheck="false">${escapeHtml(noteText(note))}</textarea>
+        <article class="note-card ${group.isRedeem ? 'is-redeem' : 'is-manual'} ${isDone ? 'is-done' : ''}"
+            data-id="${escapeAttribute(note.id)}">
+            <button class="check-button ${isDone ? 'is-done' : ''}" type="button" data-role="toggle-done"
+                aria-label="${isDone ? '恢复一份' : (group.isRedeem ? '兑现一份' : '标记为完成')}"></button>
+            <div class="note-card-body">
+                <div class="note-card-main">
+                    ${contentMarkup}
+                    ${quantityMarkup}
+                </div>
+                <div class="note-meta">
+                    <span>${escapeHtml(typeLabel)}</span>
+                    <span aria-hidden="true">·</span>
+                    <span>${escapeHtml(editor)}</span>
+                    <span>${escapeHtml(time)}</span>
+                </div>
             </div>
         </article>
     `;
 }
 
-function bindSwipe(rowWrap) {
-    let startX = 0;
-    let startY = 0;
-    let tracking = false;
-
-    rowWrap.addEventListener('pointerdown', (event) => {
-        startX = event.clientX;
-        startY = event.clientY;
-        tracking = true;
-    });
-
-    rowWrap.addEventListener('pointerup', (event) => {
-        if (!tracking) return;
-        tracking = false;
-
-        const dx = event.clientX - startX;
-        const dy = event.clientY - startY;
-        if (Math.abs(dy) > 40 || Math.abs(dx) < 42) return;
-
-        state.isMetaOpen = dx > 0;
-        render();
-    });
+function renderGroupList(groups) {
+    return groups.map(renderNoteGroup).join('');
 }
 
 function render() {
-    const notes = sortNotes(state.notes);
+    const activeGroups = groupNotes(state.notes.filter((note) => note.status !== 'done'));
+    const doneGroups = groupNotes(state.notes.filter((note) => note.status === 'done'));
+    const activeCount = activeGroups.reduce((total, group) => total + group.notes.length, 0);
+    const doneCount = doneGroups.reduce((total, group) => total + group.notes.length, 0);
 
-    if (!notes.length) {
+    if (!state.notes.length) {
         els.notesList.innerHTML = '<div class="empty-state">点下面空白处，写下第一条小笨笨。</div>';
     } else {
-        els.notesList.innerHTML = notes.map(renderNote).join('');
+        const activeMarkup = activeGroups.length
+            ? renderGroupList(activeGroups)
+            : '<div class="section-empty">现在没有待完成的事情啦。</div>';
+        const doneMarkup = doneGroups.length
+            ? `
+                <details class="completed-section">
+                    <summary>
+                        <span>已完成</span>
+                        <span class="section-count">${doneCount}</span>
+                    </summary>
+                    <div class="completed-list">${renderGroupList(doneGroups)}</div>
+                </details>
+            `
+            : '';
+
+        els.notesList.innerHTML = `
+            <section class="notes-section" aria-labelledby="active-notes-title">
+                <div class="section-heading">
+                    <h2 id="active-notes-title">待完成</h2>
+                    <span class="section-count">${activeCount}</span>
+                </div>
+                <div class="active-list">${activeMarkup}</div>
+            </section>
+            ${doneMarkup}
+        `;
     }
 
-    els.notesList.querySelectorAll('.note-row-wrap').forEach((rowWrap) => {
-        const noteId = rowWrap.dataset.id;
-        bindSwipe(rowWrap);
+    els.notesList.querySelectorAll('.note-card').forEach((noteCard) => {
+        const noteId = noteCard.dataset.id;
 
-        rowWrap.querySelector('[data-role="toggle-done"]').addEventListener('click', async (event) => {
+        noteCard.querySelector('[data-role="toggle-done"]').addEventListener('click', async (event) => {
             event.stopPropagation();
             try {
                 await toggleDone(noteId);
@@ -207,7 +262,8 @@ function render() {
             }
         });
 
-        const input = rowWrap.querySelector('[data-role="note-text"]');
+        const input = noteCard.querySelector('[data-role="note-text"]');
+        if (!input) return;
         autoGrow(input);
         input.addEventListener('input', () => {
             autoGrow(input);
@@ -297,12 +353,6 @@ function bindEvents() {
         }
     });
 
-    document.addEventListener('click', (event) => {
-        if (event.target.closest('.note-row-wrap')) return;
-        if (!state.isMetaOpen) return;
-        state.isMetaOpen = false;
-        render();
-    });
 }
 
 async function init() {

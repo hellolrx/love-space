@@ -7,6 +7,7 @@ import {
     uploadMemoryAlbumImage
 } from './album-service.js';
 import { toChinaDateISO } from '../shared/china-time.js';
+import { escapeAttribute, escapeHtml } from '../shared/html.js';
 
 const formEl = document.getElementById('album-form');
 const publishBtn = document.getElementById('publish-btn');
@@ -94,15 +95,6 @@ function closeUploadModal() {
     document.body.style.overflow = '';
 }
 
-function escapeHtml(value) {
-    return String(value || '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
-
 function renderAlbumEntries(entries) {
     if (!entries.length) {
         recentList.innerHTML = '<div class="photo-empty">还没有照片，点右下角上传第一张。</div>';
@@ -113,7 +105,7 @@ function renderAlbumEntries(entries) {
         <article class="photo-card">
             <div class="photo-card-media">
                 <div class="photo-card-placeholder">加载中...</div>
-                <img data-src="${entry.imageUrl}" alt="${escapeHtml(entry.caption || entry.shotDate)}" loading="lazy" decoding="async" fetchpriority="auto">
+                <img data-src="${escapeAttribute(entry.imageUrl)}" alt="${escapeAttribute(entry.caption || entry.shotDate)}" loading="lazy" decoding="async" fetchpriority="auto">
             </div>
             <div class="photo-info">
                 <div class="photo-date">${escapeHtml(entry.shotDate)}</div>

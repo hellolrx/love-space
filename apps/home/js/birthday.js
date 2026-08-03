@@ -1,4 +1,5 @@
-import { fetchMemoryAlbumEntries } from './album-service.js';
+import { fetchMemoryAlbumEntries } from '../../album/album-service.js';
+import { escapeAttribute, escapeHtml } from '../../shared/html.js';
 
 const PHOTO_LIST = [
     { file: 'img20250422.jpg', date: '2025.04.22', text: '第一次遇见你，我们的故事就开始啦。✨' },
@@ -453,13 +454,13 @@ class BirthdayApp {
             <div class="bg-white p-4 pb-10 shadow-2xl text-center rounded-sm relative">
                 <div class="relative overflow-hidden rounded-sm mb-3 bg-gray-200 aspect-[3/4] flex items-center justify-center">
                     <div class="animate-pulse text-gray-400 text-2xl absolute">📷</div>
-                    <img data-src="${photo.imageUrl}" alt="${photo.shotDate}" 
+                    <img data-src="${escapeAttribute(photo.imageUrl)}" alt="${escapeAttribute(photo.shotDate)}"
                          class="w-full h-full object-cover relative z-10 transition-opacity duration-500" 
                          loading="lazy" decoding="async" fetchpriority="${fetchPriority}" style="opacity:0"
                          onerror="this.previousElementSibling.textContent='😢'">
                 </div>
-                <div class="font-handwriting text-gray-700 text-lg tracking-widest mb-2">${photo.shotDate}</div>
-                <div class="font-handwriting text-gray-600 text-sm leading-relaxed px-2">${photo.caption}</div>
+                <div class="font-handwriting text-gray-700 text-lg tracking-widest mb-2">${escapeHtml(photo.shotDate)}</div>
+                <div class="font-handwriting text-gray-600 text-sm leading-relaxed px-2">${escapeHtml(photo.caption)}</div>
                 <div class="absolute -top-3 left-1/2 transform -translate-x-1/2 w-24 h-6 bg-pink-200/50 rotate-1"></div>
             </div>
         `;

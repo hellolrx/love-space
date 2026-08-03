@@ -7,13 +7,20 @@
         }
 
         .app-screen {
-            height: 100vh;
-            height: 100dvh;
-            min-height: 100svh;
+            position: fixed !important;
+            top: var(--visual-viewport-top, 0px);
+            left: var(--visual-viewport-left, 0px);
+            width: var(--visual-viewport-width, 100vw);
+            height: var(--visual-viewport-height, 100dvh);
+            min-height: 0;
         }
 
         .pb-safe {
             padding-bottom: env(safe-area-inset-bottom, 0px);
+        }
+
+        .keyboard-open .pb-safe {
+            padding-bottom: 0;
         }
 
         .glass {
@@ -339,12 +346,21 @@
             transform: translateY(-50%);
         }
 
-        .home-tabs {
+        .home-nav-row > .flex-1 {
             position: absolute;
-            right: 0;
             top: 46px;
-            bottom: auto;
+            right: 0;
             width: 150px;
+            max-height: calc(var(--visual-viewport-height, 100dvh) - 112px - env(safe-area-inset-bottom, 0px));
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
+            border-radius: 16px;
+        }
+
+        .home-tabs {
+            position: static;
+            width: 100%;
             display: grid;
             grid-template-columns: 1fr;
             gap: 6px;
@@ -394,12 +410,9 @@
         }
 
         .home-extra-menu {
-            position: absolute;
-            right: 0;
-            top: 174px;
-            bottom: auto;
-            width: 150px;
-            margin-top: 0;
+            position: static;
+            width: 100%;
+            margin-top: 6px;
             display: grid;
             grid-template-columns: 1fr;
             gap: 6px;
@@ -433,6 +446,13 @@
             .home-timer-clock {
                 flex-basis: 158px;
                 padding-right: 24px;
+            }
+        }
+
+        @media (max-height: 520px) {
+            .home-nav-row > .flex-1 {
+                top: 42px;
+                max-height: calc(var(--visual-viewport-height, 100dvh) - 70px - env(safe-area-inset-bottom, 0px));
             }
         }
 
@@ -577,6 +597,11 @@
             z-index: 9999;
             transition: all 0.3s ease;
             box-shadow: 0 4px 16px rgba(37, 99, 235, 0.28);
+        }
+
+        #new-diary,
+        #input-password {
+            font-size: 16px !important;
         }
 
         .ai-chat-btn img {

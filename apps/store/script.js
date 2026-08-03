@@ -3,6 +3,7 @@ import { supabase } from '../home/js/supabase.js';
 import { LoadingScreen } from '../load/loading.js?v=load-4';
 import { completeStoreRedeemNote, createStoreRedeemNote } from '../shared/shared-notes-service.js';
 import { toChinaDateISO } from '../shared/china-time.js';
+import { escapeAttribute, escapeHtml } from '../shared/html.js';
 
 const CATEGORY_META = {
     all: { label: '全部', subtitle: '全部心意补给' },
@@ -273,16 +274,16 @@ const StoreApp = {
             const icon = ICONS[item.icon_key] || ICONS[inferStyle(item.title).iconKey] || '🎁';
             const isMine = getOwnerKeyFromName(item.owner) === myOwnerKey;
             const action = isMine
-                ? `<button class="remove-button" data-remove-id="${item.id}">🗑️ 下架</button>`
-                : `<button class="buy-button" data-buy-id="${item.id}">🧸 ${item.price}</button>`;
+                ? `<button class="remove-button" data-remove-id="${escapeAttribute(item.id)}">🗑️ 下架</button>`
+                : `<button class="buy-button" data-buy-id="${escapeAttribute(item.id)}">🧸 ${escapeHtml(item.price)}</button>`;
 
             return `
                 <article class="product-card">
-                    <span class="stock-text">库存 ${item.stock}</span>
+                    <span class="stock-text">库存 ${escapeHtml(item.stock)}</span>
                     <div class="product-icon-wrap">
                         <div class="product-icon">${icon}</div>
                     </div>
-                    <h3 class="product-title">${item.title}</h3>
+                    <h3 class="product-title">${escapeHtml(item.title)}</h3>
                     ${action}
                 </article>
             `;
@@ -333,12 +334,12 @@ const StoreApp = {
         return `
             <article class="inventory-item ${used ? 'is-used' : ''}">
                 <div>
-                    <div class="inventory-name">${item.item_name}</div>
+                    <div class="inventory-name">${escapeHtml(item.item_name)}</div>
                     <div class="inventory-date">${toChinaDateISO(new Date(item.created_at)).replace(/-/g, '.')}</div>
                 </div>
                 ${used
                     ? '<span class="used-label">已核销</span>'
-                    : `<button class="use-button" data-use-id="${item.id}">使用</button>`}
+                    : `<button class="use-button" data-use-id="${escapeAttribute(item.id)}">使用</button>`}
             </article>
         `;
     },
@@ -432,29 +433,36 @@ const StoreApp = {
         if (!confirm(`确定花费 ${item.price} 熊熊币购买「${item.title}」吗？`)) return;
 
         const buyerNickname = Auth.getMyNickname() || '某人';
-        await Auth.updatePoints(-item.price);
-        await supabase.from('love_store').update({ stock: item.stock - 1 }).eq('id', itemId);
-
-        const { data: inventoryRow, error: inventoryError } = await supabase
-            .from('user_inventory')
-            .insert({
-                item_name: item.title,
-                is_used: false,
-                owner_name: buyerNickname
-            })
-            .select('*')
-            .single();
-
-        if (inventoryError) throw inventoryError;
-
-        await createStoreRedeemNote({
-            itemName: item.title,
-            buyerNickname,
-            inventoryId: inventoryRow?.id
+        const { data: purchase, error: purchaseError } = await supabase.rpc('purchase_store_item', {
+            p_item_id: itemId,
+            p_buyer_nickname: buyerNickname
         });
 
-        alert('购买成功！已放入背包，也同步写进小笨笨啦');
-        await Auth.loadProfile();
+        if (purchaseError) {
+            alert(`购买失败：${purchaseError.message || '请稍后重试'}`);
+            return;
+        }
+
+        if (Auth.profile && purchase?.remaining_points !== undefined) {
+            Auth.profile.points = Number(purchase.remaining_points);
+            document.dispatchEvent(new CustomEvent('points-updated'));
+        }
+
+        let noteSynced = true;
+        try {
+            await createStoreRedeemNote({
+                itemName: item.title,
+                buyerNickname,
+                inventoryId: purchase?.inventory_id
+            });
+        } catch (error) {
+            noteSynced = false;
+            console.error('购买成功，但同步小笨笨失败：', error);
+        }
+
+        alert(noteSynced
+            ? '购买成功！已放入背包，也同步写进小笨笨啦'
+            : '购买成功并已放入背包，但同步小笨笨失败，请稍后再试');
         await this.reload();
     },
 

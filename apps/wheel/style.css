@@ -293,6 +293,9 @@ h2 {
 .editor-modal {
     position: fixed;
     inset: 0;
+    top: var(--visual-viewport-top, 0px);
+    bottom: auto;
+    height: var(--visual-viewport-height, 100dvh);
     z-index: 80;
 }
 
@@ -309,13 +312,17 @@ h2 {
     left: 0;
     right: 0;
     bottom: 0;
-    max-height: min(86vh, 720px);
+    max-height: min(calc(var(--visual-viewport-height, 100dvh) - 12px), 720px);
     padding: 12px 18px calc(18px + env(safe-area-inset-bottom, 0px));
     overflow-y: auto;
     border-radius: 28px 28px 0 0;
     background: var(--paper-strong);
     border: 3px solid rgba(74, 38, 31, 0.18);
     box-shadow: 0 -18px 42px rgba(74, 38, 31, 0.2);
+}
+
+.keyboard-open .editor-sheet {
+    padding-bottom: 12px;
 }
 
 .sheet-handle {
@@ -413,7 +420,7 @@ h2 {
     color: var(--ink);
     background: rgba(255, 250, 244, 0.88);
     border: 2px solid rgba(74, 38, 31, 0.12);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 800;
 }
 

@@ -1,6 +1,6 @@
 import { CONFIG } from './js/config.js';
 import { Auth } from './js/auth.js';
-import { Calendar } from '../timeline/script.js';
+import { Calendar } from '../timeline/script.js?v=timeline-clear-1';
 import { LoadingScreen } from '../load/loading.js?v=load-4';
 
 const App = {

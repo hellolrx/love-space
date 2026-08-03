@@ -36,9 +36,8 @@ button {
     grid-template-columns: minmax(72px, 20%) minmax(0, 1fr);
     gap: 10px;
     width: 100%;
-    height: 100vh;
-    height: 100dvh;
-    min-height: 100svh;
+    height: var(--visual-viewport-height, 100dvh);
+    min-height: 0;
     padding: calc(62px + env(safe-area-inset-top, 0px)) 12px calc(16px + env(safe-area-inset-bottom, 0px));
     overflow-y: auto;
     background: url("../home/assets/background/store.jpg") center / cover no-repeat;
@@ -49,9 +48,7 @@ button {
     position: fixed;
     inset: 0;
     z-index: -1;
-    background: rgba(255, 245, 250, 0.18);
-    backdrop-filter: blur(4px) saturate(1.02);
-    -webkit-backdrop-filter: blur(4px) saturate(1.02);
+    background: linear-gradient(180deg, rgba(255, 248, 252, 0.08), rgba(255, 245, 250, 0.16));
     pointer-events: none;
 }
 
@@ -67,11 +64,9 @@ button {
     justify-content: center;
     border-radius: 999px;
     color: #fff;
-    background: rgba(29, 29, 32, 0.42);
-    border: 1px solid rgba(255, 255, 255, 0.42);
-    box-shadow: 0 12px 28px rgba(86, 96, 89, 0.12);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    background: rgba(35, 31, 34, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.54);
+    box-shadow: 0 10px 24px rgba(52, 39, 46, 0.22);
 }
 
 .store-sidebar {
@@ -87,11 +82,13 @@ button {
 .inventory-item,
 .shop-header,
 .modal-sheet {
-    background: rgba(255, 250, 253, 0.78);
-    border: 1px solid rgba(255, 255, 255, 0.72);
-    box-shadow: 0 10px 24px rgba(112, 75, 92, 0.14);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    background: rgba(255, 252, 254, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.94);
+    box-shadow: 0 10px 24px rgba(95, 61, 78, 0.18);
+}
+
+.keyboard-open .modal-sheet {
+    padding-bottom: 16px;
 }
 
 .points-card {
@@ -106,7 +103,7 @@ button {
 
 .points-card span {
     display: block;
-    color: rgba(63, 53, 64, 0.58);
+    color: #625663;
     font-size: 11px;
     font-weight: 800;
     margin-bottom: 3px;
@@ -123,7 +120,7 @@ button {
 .side-button {
     min-height: 46px;
     border-radius: 16px;
-    color: rgba(63, 53, 64, 0.68);
+    color: #554956;
     font-size: 12px;
     font-weight: 900;
     line-height: 1.2;
@@ -175,7 +172,7 @@ button {
 
 .shop-header p {
     margin: 5px 0 0;
-    color: rgba(63, 53, 64, 0.56);
+    color: #685b68;
     font-size: 11px;
     font-weight: 800;
 }
@@ -186,7 +183,7 @@ button {
     gap: 5px;
     padding: 4px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.54);
+    background: rgba(255, 255, 255, 0.9);
 }
 
 .shop-tab {
@@ -194,7 +191,7 @@ button {
     min-height: 31px;
     padding: 0 9px;
     border-radius: 999px;
-    color: rgba(63, 53, 64, 0.62);
+    color: #5f5260;
     background: transparent;
     font-size: 12px;
     font-weight: 900;
@@ -227,7 +224,7 @@ button {
 }
 
 .panel-heading span {
-    color: rgba(63, 53, 64, 0.56);
+    color: #685b68;
     font-size: 11px;
     font-weight: 800;
     white-space: nowrap;
@@ -253,7 +250,7 @@ button {
     position: absolute;
     top: 8px;
     right: 9px;
-    color: rgba(63, 53, 64, 0.58);
+    color: #655866;
     font-size: 10px;
     font-weight: 800;
 }
@@ -380,6 +377,9 @@ button {
 .modal {
     position: fixed;
     inset: 0;
+    top: var(--visual-viewport-top, 0px);
+    bottom: auto;
+    height: var(--visual-viewport-height, 100dvh);
     z-index: 40;
 }
 
@@ -396,12 +396,16 @@ button {
     left: 0;
     right: 0;
     bottom: 0;
-    max-height: 88vh;
+    max-height: calc(var(--visual-viewport-height, 100dvh) - 12px);
     overflow-y: auto;
     border-radius: 24px 24px 0 0;
     padding: 20px 28px calc(24px + env(safe-area-inset-bottom, 0px));
-    background: rgba(255, 250, 253, 0.86);
+    background: rgba(255, 250, 253, 0.98);
     color: #3f3540;
+}
+
+.text-input {
+    font-size: 16px;
 }
 
 .sheet-handle {

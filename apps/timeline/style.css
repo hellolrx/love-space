@@ -1,4 +1,4 @@
-@import "../shared/base.css?v=shared-1";
+@import "../shared/base.css?v=shared-2";
 
 body {
     background: #fff4f9;
@@ -7,9 +7,16 @@ body {
 }
 
 .timeline-page {
-    height: 100vh;
-    height: 100dvh;
-    min-height: 100svh;
+    position: fixed !important;
+    top: var(--visual-viewport-top, 0px);
+    left: var(--visual-viewport-left, 0px);
+    width: var(--visual-viewport-width, 100vw);
+    height: var(--visual-viewport-height, 100dvh);
+    min-height: 0;
+}
+
+#new-diary {
+    font-size: 16px !important;
 }
 
 #checkin-box {

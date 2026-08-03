@@ -1,4 +1,4 @@
-@import "../shared/base.css?v=shared-1";
+@import "../shared/base.css?v=shared-2";
 
 body {
     background: #fff4f9;
@@ -7,9 +7,14 @@ body {
 }
 
 .calendar-page {
-    height: 100vh;
-    height: 100dvh;
-    min-height: 100svh;
+    height: var(--visual-viewport-height, 100dvh);
+    min-height: 0;
+}
+
+#date-modal {
+    top: var(--visual-viewport-top, 0px) !important;
+    bottom: auto !important;
+    height: var(--visual-viewport-height, 100dvh);
 }
 
 .calendar-frame {
@@ -25,9 +30,7 @@ body {
     inset: 0;
     z-index: 0;
     pointer-events: none;
-    background: rgba(255, 246, 250, 0.2);
-    backdrop-filter: blur(5px) saturate(1.05);
-    -webkit-backdrop-filter: blur(5px) saturate(1.05);
+    background: linear-gradient(180deg, rgba(255, 248, 251, 0.1), rgba(255, 248, 251, 0.2));
 }
 
 .calendar-frame::after {
@@ -39,9 +42,15 @@ body {
     z-index: 1;
     border-radius: 24px;
     padding: calc(48px + env(safe-area-inset-top, 0px)) 14px 14px;
-    background: transparent;
-    border: 0;
-    box-shadow: none;
+    background: rgba(255, 250, 253, 0.76);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    box-shadow: 0 14px 32px rgba(126, 76, 94, 0.12);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+
+.calendar-home-btn {
+    background: rgba(74, 59, 66, 0.78);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
 }
@@ -54,26 +63,99 @@ body {
 }
 
 .calendar-title {
-    color: #4b3b42;
-    font-size: 18px;
+    color: #3f3038;
+    font-size: 19px;
     font-weight: 900;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.75);
 }
 
 .calendar-nav-button {
     width: 34px;
     height: 34px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.66);
+    background: rgba(255, 255, 255, 0.94);
     color: #db3f92;
     font-size: 18px;
     font-weight: 900;
-    box-shadow: 0 6px 14px rgba(126, 76, 94, 0.1);
+    box-shadow: 0 6px 14px rgba(126, 76, 94, 0.14);
+    border: 1px solid rgba(219, 63, 146, 0.14);
 }
 
 .calendar-weekdays {
-    color: rgba(75, 59, 66, 0.58);
+    color: rgba(63, 48, 56, 0.78);
     font-weight: 800;
     margin-bottom: 8px;
+}
+
+.calendar-day-cell {
+    min-height: 68px;
+    padding: 6px;
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    position: relative;
+    cursor: pointer;
+    color: #40343a;
+    background: rgba(255, 255, 255, 0.91);
+    border: 1px solid rgba(255, 255, 255, 0.96);
+    box-shadow: 0 7px 16px rgba(91, 63, 76, 0.13);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    transition: transform 0.14s ease, background 0.18s ease, box-shadow 0.18s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.calendar-day-cell:active {
+    transform: scale(0.96);
+    background: #fff;
+}
+
+.calendar-day-cell.is-today {
+    background: rgba(255, 226, 240, 0.96);
+    border-color: rgba(236, 72, 153, 0.5);
+    box-shadow: 0 9px 20px rgba(219, 63, 146, 0.2);
+}
+
+.calendar-day-number {
+    margin-bottom: 2px;
+    color: #51434a;
+    font-size: 13px;
+    line-height: 1.2;
+    font-weight: 800;
+}
+
+.calendar-day-cell.is-today .calendar-day-number {
+    color: #d63384;
+}
+
+.calendar-day-icon {
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 19px;
+    line-height: 1;
+}
+
+.calendar-day-dots {
+    height: 8px;
+    margin-top: auto;
+    display: flex;
+    align-items: center;
+}
+
+@media (max-width: 390px) {
+    .calendar-card {
+        padding-inline: 10px;
+    }
+
+    .calendar-day-cell {
+        min-height: 64px;
+        padding: 5px;
+        border-radius: 14px;
+    }
 }
 
 .date-modal-backdrop {
@@ -89,6 +171,8 @@ body {
     left: 0;
     right: 0;
     bottom: 0;
+    max-height: calc(var(--visual-viewport-height, 100dvh) - 12px);
+    overflow-y: auto;
     border-radius: 24px 24px 0 0;
     padding: 20px;
     background: rgba(255, 246, 250, 0.92);
@@ -96,4 +180,9 @@ body {
     box-shadow: 0 -16px 38px rgba(126, 76, 94, 0.2);
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
+}
+
+#schedule-title,
+#schedule-label {
+    font-size: 16px !important;
 }

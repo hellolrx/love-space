@@ -1,5 +1,5 @@
 import { Auth } from '../home/js/auth.js';
-import { Calendar } from '../timeline/script.js';
+import { Calendar } from '../timeline/script.js?v=timeline-clear-1';
 import { LoadingScreen } from '../load/loading.js?v=load-4';
 
 async function initCalendarPage() {

@@ -16,8 +16,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const sendBtn = document.getElementById('send-btn');
     const chatMessages = document.getElementById('chat-messages');
 
-    setupKeyboardOffset();
-
     // Create Background Particles
     createParticles();
 
@@ -107,27 +105,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function scrollToBottom() {
         chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
-
-    function setupKeyboardOffset() {
-        const root = document.documentElement;
-        const viewport = window.visualViewport;
-
-        if (!viewport) return;
-
-        const updateOffset = () => {
-            const keyboardOffset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
-            root.style.setProperty('--keyboard-offset', `${keyboardOffset}px`);
-            scrollToBottom();
-        };
-
-        viewport.addEventListener('resize', updateOffset);
-        viewport.addEventListener('scroll', updateOffset);
-        messageInput.addEventListener('focus', updateOffset);
-        messageInput.addEventListener('blur', () => {
-            root.style.setProperty('--keyboard-offset', '0px');
-        });
-        updateOffset();
     }
 
     function typeWriter(element, text, index = 0) {

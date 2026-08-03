@@ -10,6 +10,7 @@ import {
     getChinaDateParts,
     toChinaDateISO
 } from '../shared/china-time.js';
+import { escapeHtml } from '../shared/html.js';
 
 const SCHEDULE_LABELS = {
     date:        { icon: '💕', name: '约会', color: 'pink' },
@@ -107,6 +108,8 @@ export const Calendar = {
 
         this.events.forEach(item => {
             const nickname = this._getNickname(item);
+            const safeNickname = escapeHtml(nickname);
+            const safeContent = escapeHtml(item.content);
             
             let themeColor = 'pink';
             if (nickname && (nickname.includes('Gogo') || nickname.includes('Boy'))) {
@@ -145,8 +148,8 @@ export const Calendar = {
             const nameTimeHTML = isMe
                 ? `<span class="time-display text-[11px] text-gray-500 cursor-pointer hover:text-gray-300 transition-colors whitespace-nowrap"
                         data-time-full="${timeFull}" data-time-short="${timeShort}">${timeShort}</span>
-                   <span class="text-xs font-bold ${textColor} flex items-center gap-1">${moodIcon} ${nickname} ${typeIcon}</span>`
-                : `<span class="text-xs font-bold ${textColor} flex items-center gap-1">${typeIcon} ${nickname} ${moodIcon}</span>
+                   <span class="text-xs font-bold ${textColor} flex items-center gap-1">${moodIcon} ${safeNickname} ${typeIcon}</span>`
+                : `<span class="text-xs font-bold ${textColor} flex items-center gap-1">${typeIcon} ${safeNickname} ${moodIcon}</span>
                    <span class="time-display text-[11px] text-gray-500 cursor-pointer hover:text-gray-300 transition-colors whitespace-nowrap"
                         data-time-full="${timeFull}" data-time-short="${timeShort}">${timeShort}</span>`;
 
@@ -162,7 +165,7 @@ export const Calendar = {
                     <div class="flex justify-between items-center mb-1.5 gap-3">
                         ${nameTimeHTML}
                     </div>
-                    <p class="text-black text-sm leading-relaxed break-words">${item.content}</p>
+                    <p class="text-black text-sm leading-relaxed break-words">${safeContent}</p>
                     ${ showSoothe ? `
                         <div class="mt-2 text-right">
                             <button onclick="window.app.sootheUser('${item.id}')" class="text-xs bg-red-500 text-white px-3 py-1 rounded-full shadow animate-bounce">
@@ -231,7 +234,7 @@ export const Calendar = {
             const dateISO = toLocalISO(dateObj);
 
             const cell = document.createElement('div');
-            cell.className = 'min-h-[68px] p-1.5 rounded-2xl flex flex-col items-center justify-start relative cursor-pointer transition border border-white/[0.82] bg-white/[0.68] shadow-[0_10px_22px_rgba(126,76,94,0.13)] hover:bg-white/[0.76]';
+            cell.className = 'calendar-day-cell';
 
             const dayEvents = this.events.filter(e => {
                 return toLocalISO(new Date(e.created_at)) === dateISO;
@@ -240,7 +243,7 @@ export const Calendar = {
             const daySchedules = this.schedules.filter(s => s.date === dateISO);
 
             if (dateISO === todayStr) {
-                cell.classList.add('!bg-pink-100/[0.78]', '!border-pink-300/[0.92]', 'shadow-[0_12px_26px_rgba(219,63,146,0.18)]');
+                cell.classList.add('is-today');
             }
 
             let mainIcon = '';
@@ -266,9 +269,9 @@ export const Calendar = {
             }
 
             cell.innerHTML = `
-                <span class="text-[11px] mb-0.5 ${dateISO === todayStr ? 'font-bold text-pink-500' : 'font-bold text-stone-500'}">${day}</span>
-                <div class="text-lg h-5 flex items-center justify-center">${mainIcon}</div>
-                <div class="flex mt-auto h-2">${dotsHTML}</div>
+                <span class="calendar-day-number">${day}</span>
+                <div class="calendar-day-icon">${mainIcon}</div>
+                <div class="calendar-day-dots">${dotsHTML}</div>
             `;
 
             cell.onclick = () => this.openDateModal(dateObj, dayEvents, daySchedules);
@@ -304,8 +307,8 @@ export const Calendar = {
                 div.className = `p-3 rounded-2xl border-l-4 ${colorCls} flex justify-between items-center shadow-[0_6px_18px_rgba(126,76,94,0.08)]`;
                 div.innerHTML = `
                     <div class="${completedCls}">
-                        <span class="text-sm font-bold text-stone-700">${labelInfo.icon} ${sch.title}</span>
-                        <div class="text-[10px] text-stone-500 mt-0.5">${labelInfo.name} · ${sch.author_name || ''}</div>
+                        <span class="text-sm font-bold text-stone-700">${labelInfo.icon} ${escapeHtml(sch.title)}</span>
+                        <div class="text-[10px] text-stone-500 mt-0.5">${escapeHtml(labelInfo.name)} · ${escapeHtml(sch.author_name || '')}</div>
                     </div>
                     ${!sch.completed ? `
                         <button onclick="window.app.completeSchedule(${sch.id})" class="text-[10px] bg-green-500/15 text-green-700 px-2 py-1 rounded-lg hover:bg-green-500 hover:text-white transition">
@@ -320,6 +323,8 @@ export const Calendar = {
         if (events.length > 0) {
             events.forEach(item => {
                 const nickname = this._getNickname(item);
+                const safeNickname = escapeHtml(nickname);
+                const safeContent = escapeHtml(item.content);
                 const isGogo = nickname.includes('Gogo') || nickname.includes('Boy');
                 const colorClass = isGogo ? 'text-blue-500' : 'text-pink-500';
                 const time = formatChinaTime(new Date(item.created_at));
@@ -329,10 +334,10 @@ export const Calendar = {
                 div.innerHTML = `
                     <div class="flex-1">
                         <div class="flex justify-between mb-1">
-                            <span class="text-xs font-bold ${colorClass}">${nickname}</span>
+                            <span class="text-xs font-bold ${colorClass}">${safeNickname}</span>
                             <span class="text-xs text-stone-500">${time}</span>
                         </div>
-                        <p class="text-sm text-stone-700">${item.content}</p>
+                        <p class="text-sm text-stone-700">${safeContent}</p>
                     </div>
                 `;
                 list.appendChild(div);

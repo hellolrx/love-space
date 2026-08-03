@@ -41,6 +41,10 @@ button {
     padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+.keyboard-open .pb-safe {
+    padding-bottom: 0;
+}
+
 .glass {
     background: rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(16px);
