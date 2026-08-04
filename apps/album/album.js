@@ -34,6 +34,9 @@ let currentUserKey = '';
 let currentAuthorName = '';
 let imageObserver = null;
 
+const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+const MAX_IMAGE_EDGE = 2400;
+
 function setStatus(message, type = '') {
     submitStatus.textContent = message;
     submitStatus.classList.remove('is-success', 'is-error');
@@ -75,6 +78,73 @@ function updatePreviewText() {
     previewDate.textContent = rawDate ? formatAlbumDate(rawDate) : '2026.04.08';
     previewCaption.textContent = caption || '这里会显示你的文字描述。';
     captionCount.textContent = String(captionInput.value.length);
+}
+
+function canvasToJpeg(canvas, quality) {
+    return new Promise((resolve, reject) => {
+        canvas.toBlob((blob) => {
+            if (blob) {
+                resolve(blob);
+            } else {
+                reject(new Error('浏览器无法压缩这张图片'));
+            }
+        }, 'image/jpeg', quality);
+    });
+}
+
+function loadImageFile(file) {
+    return new Promise((resolve, reject) => {
+        const objectUrl = URL.createObjectURL(file);
+        const image = new Image();
+
+        image.onload = () => {
+            URL.revokeObjectURL(objectUrl);
+            resolve(image);
+        };
+        image.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
+            reject(new Error('无法读取这张图片，请换一张再试'));
+        };
+        image.src = objectUrl;
+    });
+}
+
+async function compressImageIfNeeded(file) {
+    if (file.size <= MAX_IMAGE_BYTES) return file;
+    if (!file.type.startsWith('image/')) {
+        throw new Error('请选择图片文件');
+    }
+
+    const image = await loadImageFile(file);
+    const originalWidth = image.naturalWidth || image.width;
+    const originalHeight = image.naturalHeight || image.height;
+    const edgeScale = Math.min(1, MAX_IMAGE_EDGE / Math.max(originalWidth, originalHeight));
+    const sizeScales = [edgeScale, edgeScale * 0.82, edgeScale * 0.67, edgeScale * 0.54];
+    const qualities = [0.84, 0.7, 0.58];
+    const canvas = document.createElement('canvas');
+
+    for (const scale of sizeScales) {
+        canvas.width = Math.max(1, Math.round(originalWidth * scale));
+        canvas.height = Math.max(1, Math.round(originalHeight * scale));
+
+        const context = canvas.getContext('2d');
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+        for (const quality of qualities) {
+            const blob = await canvasToJpeg(canvas, quality);
+            if (blob.size > MAX_IMAGE_BYTES) continue;
+
+            const baseName = String(file.name || 'photo').replace(/\.[^.]+$/, '') || 'photo';
+            return new File([blob], `${baseName}.jpg`, {
+                type: 'image/jpeg',
+                lastModified: Date.now()
+            });
+        }
+    }
+
+    throw new Error('自动压缩后仍超过 2MB，请换一张较小的图片');
 }
 
 function resetUploadForm() {
@@ -208,14 +278,13 @@ async function handleSubmit() {
     const file = fileInput.files?.[0];
     const shotDate = dateInput.value;
     const caption = captionInput.value.trim();
-    const maxFileSize = 2 * 1024 * 1024;
 
     if (!file) {
         setStatus('先选择一张图片。', 'is-error');
         return;
     }
-    if (file.size > maxFileSize) {
-        setStatus('图片不能超过 2MB。', 'is-error');
+    if (!file.type.startsWith('image/')) {
+        setStatus('请选择图片文件。', 'is-error');
         return;
     }
     if (!shotDate) {
@@ -228,10 +297,19 @@ async function handleSubmit() {
     }
 
     setUploadDisabled(true);
-    setStatus('正在保存...');
 
     try {
-        const imagePath = await uploadMemoryAlbumImage(file, currentUserKey);
+        let uploadFile = file;
+        if (file.size > MAX_IMAGE_BYTES) {
+            setStatus('图片较大，正在本地压缩...');
+            uploadFile = await compressImageIfNeeded(file);
+            updatePreviewImage(uploadFile);
+            setStatus(`已压缩至 ${(uploadFile.size / 1024 / 1024).toFixed(2)}MB，正在保存...`);
+        } else {
+            setStatus('正在保存...');
+        }
+
+        const imagePath = await uploadMemoryAlbumImage(uploadFile, currentUserKey);
         await createMemoryAlbumEntry({
             imagePath,
             shotDate,
