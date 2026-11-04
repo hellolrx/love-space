@@ -12,6 +12,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FRONTEND="$ROOT/frontend"
 DIST="$ROOT/dist"
 
 mkdir -p "$DIST"
@@ -26,7 +27,7 @@ rsync -a --delete \
   --include '_headers' \
   --include 'site.webmanifest' \
   --exclude '*' \
-  "$ROOT/" "$DIST/"
+  "$FRONTEND/" "$DIST/"
 
 echo "→ 同步完成"
 echo "  dist/ 大小: $(du -sh "$DIST" | cut -f1)"

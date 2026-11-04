@@ -39,19 +39,19 @@
             <div id="login-password-group" class="space-y-4">
                 <div class="login-identity-group" role="radiogroup" aria-label="选择登录身份">
                     <label id="identity-gogo-option" class="identity-choice">
-                        <input type="radio" name="login-identity" value="lrx"
+                        <input type="radio" name="login-identity" value="Gogo"
                             onchange="window.app.selectLoginIdentity('gogo')">
                         <span class="identity-dot"></span>
                         <span>我是 Gogo</span>
                     </label>
                     <label id="identity-gigi-option" class="identity-choice active">
-                        <input type="radio" name="login-identity" value="zjt" checked
+                        <input type="radio" name="login-identity" value="Gigi" checked
                             onchange="window.app.selectLoginIdentity('gigi')">
                         <span class="identity-dot"></span>
                         <span>我是 Gigi</span>
                     </label>
                 </div>
-                <input type="hidden" id="input-username" value="zjt">
+                <input type="hidden" id="input-identity" value="Gigi">
                 <input type="password" id="input-password" value="20250522" placeholder="密码"
                     class="input-field login-password-field" autocomplete="current-password">
                 <button onclick="window.app.loginWithPassword()" class="btn-primary">登录</button>

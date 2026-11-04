@@ -11,8 +11,8 @@ const App = {
     _isSendingDiary: false,
     _lastDiarySubmit: { key: '', at: 0 },
     _loginIdentities: {
-        gogo: { username: 'lrx', password: '20250522' },
-        gigi: { username: 'zjt', password: '20250522' }
+        gogo: { identity: 'Gogo', password: '20250522' },
+        gigi: { identity: 'Gigi', password: '20250522' }
     },
 
     async init() {
@@ -218,13 +218,13 @@ const App = {
 
     selectLoginIdentity(identity) {
         const config = this._loginIdentities[identity] || this._loginIdentities.gigi;
-        const usernameInput = document.getElementById('input-username');
+        const identityInput = document.getElementById('input-identity');
         const passwordInput = document.getElementById('input-password');
         const gogoOption = document.getElementById('identity-gogo-option');
         const gigiOption = document.getElementById('identity-gigi-option');
-        const radio = document.querySelector(`input[name="login-identity"][value="${config.username}"]`);
+        const radio = document.querySelector(`input[name="login-identity"][value="${config.identity}"]`);
 
-        if (usernameInput) usernameInput.value = config.username;
+        if (identityInput) identityInput.value = config.identity;
         if (passwordInput) passwordInput.value = config.password;
         if (radio) radio.checked = true;
 
@@ -233,12 +233,12 @@ const App = {
     },
 
     async loginWithPassword() {
-        const username = document.getElementById('input-username').value.trim();
+        const identity = document.getElementById('input-identity').value.trim();
         const password = document.getElementById('input-password').value.trim();
 
         try {
             await LoadingScreen.withLoading(async () => {
-                await Auth.loginWithPassword(username, password);
+                await Auth.loginWithPassword(identity, password);
                 await this.showPage('main', { waitForData: true });
             });
         } catch (e) {

@@ -1,0 +1,8 @@
+name = "love-space-backend"
+main = "src/main.py"
+compatibility_date = "2026-11-04"
+compatibility_flags = ["python_workers"]
+
+[vars]
+SUPABASE_URL = "https://xgipgpdhnqfnlsiwofol.supabase.co"
+ALLOWED_ORIGINS = "https://welcome-zjt.pages.dev,http://localhost:8000,http://127.0.0.1:8000"
