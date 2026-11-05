@@ -36,6 +36,14 @@ export const Auth = {
         return null;
     },
 
+    getAccessToken() {
+        try {
+            return JSON.parse(localStorage.getItem('love-space-auth') || '{}').accessToken || null;
+        } catch {
+            return null;
+        }
+    },
+
     _isSameDay(dateStr) {
         if (!dateStr) return false;
         return isSameChinaDay(dateStr, new Date());

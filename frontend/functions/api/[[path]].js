@@ -1,7 +1,8 @@
 const allowedMethods = {
     '/api/auth/login': 'POST',
     '/api/auth/session': 'GET',
-    '/api/profile': 'GET'
+    '/api/profile': 'GET',
+    '/api/schedules': 'GET'
 };
 
 export async function onRequest({ request, env }) {

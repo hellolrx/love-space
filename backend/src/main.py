@@ -143,6 +143,37 @@ async def _get_profile(request: Request, profile_id: str) -> dict | None:
     return rows[0] if rows else None
 
 
+async def _get_schedules(request: Request) -> list[dict]:
+    env = request.scope.get("env")
+    project_url = _binding(env, "SUPABASE_URL").rstrip("/")
+    server_key = _binding(env, "SUPABASE_SERVER_KEY")
+
+    if not project_url or not server_key:
+        raise HTTPException(status_code=503, detail="日程服务尚未配置")
+
+    headers = {"apikey": server_key, "Accept": "application/json"}
+    if not server_key.startswith("sb_secret_"):
+        headers["Authorization"] = f"Bearer {server_key}"
+
+    try:
+        response = await fetch(
+            f"{project_url}/rest/v1/schedules?select=*&order=date.asc",
+            method="GET",
+            headers=headers,
+        )
+        if response.status != 200:
+            raise HTTPException(status_code=503, detail="暂时无法读取日程")
+        rows = await response.json()
+    except HTTPException:
+        raise
+    except Exception as error:
+        raise HTTPException(status_code=503, detail="暂时无法连接日程服务") from error
+
+    if not isinstance(rows, list):
+        raise HTTPException(status_code=503, detail="日程数据格式异常")
+    return rows
+
+
 @app.middleware("http")
 async def cors_middleware(request: Request, call_next):
     env = request.scope.get("env")
@@ -224,6 +255,12 @@ async def profile(request: Request):
     if result is None:
         raise HTTPException(status_code=404, detail="找不到对应的个人资料")
     return result
+
+
+@app.get("/api/schedules")
+async def schedules(request: Request):
+    _get_session_payload(request)
+    return await _get_schedules(request)
 
 
 Default = asgi.entrypoint(app)

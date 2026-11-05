@@ -66,12 +66,15 @@ export const Calendar = {
     },
 
     async loadSchedules() {
-        const { data } = await supabase
-            .from('schedules')
-            .select('*')
-            .order('date', { ascending: true });
+        const accessToken = Auth.getAccessToken();
+        if (!accessToken) return;
 
-        if (data) this.schedules = data;
+        const response = await fetch('/api/schedules', {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.detail || '暂时无法读取日程');
+        this.schedules = payload;
     },
 
     _getNickname(item) {
