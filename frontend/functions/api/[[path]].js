@@ -4,12 +4,17 @@ const allowedMethods = {
     '/api/profile': 'GET',
     '/api/schedules': 'GET',
     '/api/calendar-events': 'GET',
-    '/api/store/items': 'GET'
+    '/api/store/items': 'GET',
+    '/api/store/inventory': 'GET',
+    '/api/store/purchases': 'POST'
 };
 
 export async function onRequest({ request, env }) {
     const url = new URL(request.url);
-    const allowedMethod = allowedMethods[url.pathname];
+    let allowedMethod = allowedMethods[url.pathname];
+
+    if (/^\/api\/store\/items\/\d+$/.test(url.pathname)) allowedMethod = 'DELETE';
+    if (/^\/api\/store\/inventory\/\d+\/use$/.test(url.pathname)) allowedMethod = 'POST';
 
     if (!allowedMethod) {
         return Response.json({ detail: 'Not found' }, { status: 404 });

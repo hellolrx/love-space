@@ -1,9 +1,24 @@
 import { Auth } from '../home/js/auth.js';
-import { supabase } from '../home/js/supabase.js';
 import { LoadingScreen } from '../load/loading.js?v=load-4';
-import { completeStoreRedeemNote, createStoreRedeemNote } from '../shared/shared-notes-service.js';
-import { toChinaDateISO } from '../shared/china-time.js';
 import { escapeAttribute, escapeHtml } from '../shared/html.js';
+import { toChinaDateISO } from '../shared/china-time.js';
+
+async function storeRequest(path, options = {}) {
+    const accessToken = Auth.getAccessToken();
+    if (!accessToken) throw new Error('登录状态已失效，请重新登录');
+
+    const response = await fetch(path, {
+        ...options,
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+            ...(options.headers || {})
+        }
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.detail || '商店服务暂时不可用');
+    return payload;
+}
 
 const CATEGORY_META = {
     all: { label: '全部', subtitle: '全部心意补给' },
@@ -74,14 +89,6 @@ function getOwnerKeyFromName(name) {
 
 function getOppositeOwnerKey(ownerKey) {
     return ownerKey === 'gogo' ? 'gigi' : 'gogo';
-}
-
-function getOwnerAliases(ownerKey) {
-    return ownerKey === 'gogo' ? ['Gogo', 'Boy', 'daddy', 'Daddy'] : ['Gigi'];
-}
-
-function toLocalISO(dateObj) {
-    return toChinaDateISO(dateObj);
 }
 
 function inferStyle(title, selectedCategory = 'auto') {
@@ -188,26 +195,11 @@ const StoreApp = {
     },
 
     async loadItems() {
-        const accessToken = Auth.getAccessToken();
-        if (!accessToken) return;
-
-        const response = await fetch('/api/store/items', {
-            headers: { Authorization: `Bearer ${accessToken}` }
-        });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(payload.detail || '暂时无法读取商品目录');
-        this.items = payload;
+        this.items = await storeRequest('/api/store/items');
     },
 
     async loadInventory() {
-        const name = Auth.getMyNickname();
-        const { data, error } = await supabase
-            .from('user_inventory')
-            .select('*')
-            .eq('owner_name', name)
-            .order('created_at', { ascending: false });
-        if (error) throw error;
-        this.inventory = data || [];
+        this.inventory = await storeRequest('/api/store/inventory');
     },
 
     render() {
@@ -378,15 +370,12 @@ const StoreApp = {
 
         const myName = Auth.getMyNickname();
         const inferred = inferStyle(title, this.addCategory);
-        const { error } = await supabase.from('love_store').insert({
-            title,
-            price,
-            stock: 99,
-            owner: myName,
-            icon_key: inferred.iconKey
-        });
-
-        if (error) {
+        try {
+            await storeRequest('/api/store/items', {
+                method: 'POST',
+                body: JSON.stringify({ title, price, icon_key: inferred.iconKey })
+            });
+        } catch (error) {
             alert('上架失败: ' + error.message);
             return;
         }
@@ -406,13 +395,9 @@ const StoreApp = {
     async deleteItem(itemId) {
         if (!confirm('确定要下架这个商品吗？')) return;
 
-        const { error } = await supabase
-            .from('love_store')
-            .delete()
-            .eq('id', itemId)
-            .in('owner', getOwnerAliases(getOwnerKeyFromName(Auth.getMyNickname())));
-
-        if (error) {
+        try {
+            await storeRequest(`/api/store/items/${encodeURIComponent(itemId)}`, { method: 'DELETE' });
+        } catch (error) {
             alert('下架失败: ' + error.message);
             return;
         }
@@ -435,14 +420,14 @@ const StoreApp = {
         if (points < item.price) return alert('熊熊币不足，攒攒再来吧');
         if (!confirm(`确定花费 ${item.price} 熊熊币购买「${item.title}」吗？`)) return;
 
-        const buyerNickname = Auth.getMyNickname() || '某人';
-        const { data: purchase, error: purchaseError } = await supabase.rpc('purchase_store_item', {
-            p_item_id: itemId,
-            p_buyer_nickname: buyerNickname
-        });
-
-        if (purchaseError) {
-            alert(`购买失败：${purchaseError.message || '请稍后重试'}`);
+        let purchase;
+        try {
+            purchase = await storeRequest('/api/store/purchases', {
+                method: 'POST',
+                body: JSON.stringify({ item_id: itemId })
+            });
+        } catch (error) {
+            alert(`购买失败：${error.message || '请稍后重试'}`);
             return;
         }
 
@@ -451,17 +436,7 @@ const StoreApp = {
             document.dispatchEvent(new CustomEvent('points-updated'));
         }
 
-        let noteSynced = true;
-        try {
-            await createStoreRedeemNote({
-                itemName: item.title,
-                buyerNickname,
-                inventoryId: purchase?.inventory_id
-            });
-        } catch (error) {
-            noteSynced = false;
-            console.error('购买成功，但同步小笨笨失败：', error);
-        }
+        const noteSynced = purchase.note_synced !== false;
 
         alert(noteSynced
             ? '购买成功！已放入背包，也同步写进小笨笨啦'
@@ -474,32 +449,20 @@ const StoreApp = {
         if (!item) return;
         if (!confirm(`确定要使用「${item.item_name}」吗？对方会在时光轴看到通知。`)) return;
 
-        const { error } = await supabase
-            .from('user_inventory')
-            .update({ is_used: true })
-            .eq('id', inventoryId);
-
-        if (error) {
+        let result;
+        try {
+            result = await storeRequest(`/api/store/inventory/${encodeURIComponent(inventoryId)}/use`, {
+                method: 'POST'
+            });
+        } catch (error) {
             alert('使用失败: ' + error.message);
             return;
         }
 
-        const nickname = Auth.getMyNickname() || '某人';
-        await supabase.from('calendar_events').insert({
-            author_name: nickname,
-            date: toLocalISO(new Date()),
-            content: `${nickname} 使用了【${item.item_name}】，请尽快兑现！`,
-            type: 'diary',
-            mood: 'happy'
-        });
-
-        await completeStoreRedeemNote({
-            inventoryId,
-            itemName: item.item_name,
-            operatorNickname: nickname
-        });
-
-        alert('使用成功！对方会在时光轴看到通知，小笨笨里也已标记完成');
+        const synced = result.event_synced && result.note_synced;
+        alert(synced
+            ? '使用成功！对方会在时光轴看到通知，小笨笨里也已标记完成'
+            : '物品已标记使用，但部分通知同步失败，请检查时光轴和小笨笨');
         await this.loadInventory();
         this.render();
     }
