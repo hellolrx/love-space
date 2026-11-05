@@ -19,11 +19,13 @@ mkdir -p "$DIST"
 
 echo "→ 同步网站文件到 dist/ ..."
 
-# 用 include 白名单精确镜像，dist/ 里只会出现下面这 4 项
+# 用 include 白名单精确镜像，dist/ 里只会出现下面这些项目
 rsync -a --delete \
   --include 'index.html' \
   --include 'apps/' \
   --include 'apps/**' \
+  --include 'functions/' \
+  --include 'functions/**' \
   --include '_headers' \
   --include 'site.webmanifest' \
   --exclude '*' \

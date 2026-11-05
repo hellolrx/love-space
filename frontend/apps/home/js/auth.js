@@ -8,10 +8,10 @@ const LEGACY_USERNAME_BY_IDENTITY = {
 };
 
 async function requestAuth(path, options = {}) {
-    const baseUrl = CONFIG.API_BASE_URL?.trim().replace(/\/$/, '');
-    if (!baseUrl) throw new Error('登录服务地址尚未配置');
+    const baseUrl = CONFIG.API_BASE_URL?.trim() || window.location.origin;
+    const url = new URL(path, baseUrl).toString();
 
-    const response = await fetch(`${baseUrl}${path}`, {
+    const response = await fetch(url, {
         ...options,
         headers: {
             'Content-Type': 'application/json',
@@ -65,7 +65,7 @@ export const Auth = {
                 identity: session.identity,
                 username: LEGACY_USERNAME_BY_IDENTITY[session.identity]
             };
-            await this.loadProfile();
+            await this.loadProfile(authData.accessToken);
             if (!this.profile) {
                 localStorage.removeItem('love-space-auth');
                 this.user = null;
@@ -103,7 +103,7 @@ export const Auth = {
             identity: session.identity,
             username: LEGACY_USERNAME_BY_IDENTITY[session.identity]
         };
-        await this.loadProfile();
+        await this.loadProfile(session.access_token);
         if (!this.profile) {
             this.user = null;
             throw new Error('登录成功，但找不到对应的个人资料');
@@ -112,16 +112,11 @@ export const Auth = {
         return { user: this.user, profile: this.profile };
     },
 
-    async loadProfile() {
+    async loadProfile(accessToken) {
         if (!this.user?.id) return;
-        const { data, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', this.user.id)
-            .maybeSingle();
-
-        if (error) throw error;
-        this.profile = data || null;
+        this.profile = await requestAuth('/api/profile', {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
     },
 
     async updatePoints(amount) {

@@ -101,6 +101,48 @@ async def _get_identity(request: Request, identity: str) -> dict:
     return rows[0]
 
 
+def _get_session_payload(request: Request) -> dict:
+    env = request.scope.get("env")
+    session_secret = _binding(env, "SESSION_SECRET")
+    authorization = request.headers.get("authorization", "")
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token or len(session_secret.encode("utf-8")) < 32:
+        raise HTTPException(status_code=401, detail="登录状态已失效")
+
+    payload = _read_token(token, session_secret)
+    if payload is None:
+        raise HTTPException(status_code=401, detail="登录状态已失效")
+    return payload
+
+
+async def _get_profile(request: Request, profile_id: str) -> dict | None:
+    env = request.scope.get("env")
+    project_url = _binding(env, "SUPABASE_URL").rstrip("/")
+    server_key = _binding(env, "SUPABASE_SERVER_KEY")
+
+    if not project_url or not server_key:
+        raise HTTPException(status_code=503, detail="登录服务尚未配置")
+
+    headers = {"apikey": server_key, "Accept": "application/json"}
+    if not server_key.startswith("sb_secret_"):
+        headers["Authorization"] = f"Bearer {server_key}"
+
+    url = f"{project_url}/rest/v1/profiles?select=*&id=eq.{quote(profile_id)}&limit=2"
+    try:
+        response = await fetch(url, method="GET", headers=headers)
+        if response.status != 200:
+            raise HTTPException(status_code=503, detail="暂时无法读取个人资料")
+        rows = await response.json()
+    except HTTPException:
+        raise
+    except Exception as error:
+        raise HTTPException(status_code=503, detail="暂时无法连接登录服务") from error
+
+    if not isinstance(rows, list) or len(rows) > 1:
+        raise HTTPException(status_code=503, detail="个人资料数据异常")
+    return rows[0] if rows else None
+
+
 @app.middleware("http")
 async def cors_middleware(request: Request, call_next):
     env = request.scope.get("env")
@@ -167,21 +209,21 @@ async def login(body: LoginRequest, request: Request):
 
 @app.get("/api/auth/session")
 async def session(request: Request):
-    env = request.scope.get("env")
-    session_secret = _binding(env, "SESSION_SECRET")
-    authorization = request.headers.get("authorization", "")
-    scheme, _, token = authorization.partition(" ")
-    if scheme.lower() != "bearer" or not token or len(session_secret.encode("utf-8")) < 32:
-        raise HTTPException(status_code=401, detail="登录状态已失效")
-
-    payload = _read_token(token, session_secret)
-    if payload is None:
-        raise HTTPException(status_code=401, detail="登录状态已失效")
+    payload = _get_session_payload(request)
     return {
         "profile_id": payload["profile_id"],
         "identity": payload["identity"],
         "expires_at": payload["exp"],
     }
+
+
+@app.get("/api/profile")
+async def profile(request: Request):
+    payload = _get_session_payload(request)
+    result = await _get_profile(request, payload["profile_id"])
+    if result is None:
+        raise HTTPException(status_code=404, detail="找不到对应的个人资料")
+    return result
 
 
 Default = asgi.entrypoint(app)
