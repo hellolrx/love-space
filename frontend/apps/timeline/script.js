@@ -53,16 +53,17 @@ export const Calendar = {
         const container = document.getElementById('events-container');
         if (container) container.innerHTML = '';
 
-        const { data } = await supabase
-            .from('calendar_events')
-            .select('*, profiles(nickname)')
-            .order('created_at', { ascending: false })
-            .limit(100);
+        const accessToken = Auth.getAccessToken();
+        if (!accessToken) return;
 
-        if (data) {
-            this.events = data;
-            this.renderEvents();
-        }
+        const response = await fetch('/api/calendar-events', {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.detail || '暂时无法读取日历事件');
+
+        this.events = payload;
+        this.renderEvents();
     },
 
     async loadSchedules() {
