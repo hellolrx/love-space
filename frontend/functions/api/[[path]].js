@@ -3,7 +3,8 @@ const allowedMethods = {
     '/api/auth/session': 'GET',
     '/api/profile': 'GET',
     '/api/schedules': 'GET',
-    '/api/calendar-events': 'GET'
+    '/api/calendar-events': 'GET',
+    '/api/store/items': 'GET'
 };
 
 export async function onRequest({ request, env }) {

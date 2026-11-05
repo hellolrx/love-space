@@ -206,6 +206,37 @@ async def _get_calendar_events(request: Request) -> list[dict]:
     return rows
 
 
+async def _get_store_items(request: Request) -> list[dict]:
+    env = request.scope.get("env")
+    project_url = _binding(env, "SUPABASE_URL").rstrip("/")
+    server_key = _binding(env, "SUPABASE_SERVER_KEY")
+
+    if not project_url or not server_key:
+        raise HTTPException(status_code=503, detail="商店服务尚未配置")
+
+    headers = {"apikey": server_key, "Accept": "application/json"}
+    if not server_key.startswith("sb_secret_"):
+        headers["Authorization"] = f"Bearer {server_key}"
+
+    try:
+        response = await fetch(
+            f"{project_url}/rest/v1/love_store?select=*&order=id.asc",
+            method="GET",
+            headers=headers,
+        )
+        if response.status != 200:
+            raise HTTPException(status_code=503, detail="暂时无法读取商品目录")
+        rows = await response.json()
+    except HTTPException:
+        raise
+    except Exception as error:
+        raise HTTPException(status_code=503, detail="暂时无法连接商店服务") from error
+
+    if not isinstance(rows, list):
+        raise HTTPException(status_code=503, detail="商品目录数据格式异常")
+    return rows
+
+
 @app.middleware("http")
 async def cors_middleware(request: Request, call_next):
     env = request.scope.get("env")
@@ -299,6 +330,12 @@ async def schedules(request: Request):
 async def calendar_events(request: Request):
     _get_session_payload(request)
     return await _get_calendar_events(request)
+
+
+@app.get("/api/store/items")
+async def store_items(request: Request):
+    _get_session_payload(request)
+    return await _get_store_items(request)
 
 
 Default = asgi.entrypoint(app)

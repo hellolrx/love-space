@@ -188,12 +188,15 @@ const StoreApp = {
     },
 
     async loadItems() {
-        const { data, error } = await supabase
-            .from('love_store')
-            .select('*')
-            .order('id', { ascending: true });
-        if (error) throw error;
-        this.items = data || [];
+        const accessToken = Auth.getAccessToken();
+        if (!accessToken) return;
+
+        const response = await fetch('/api/store/items', {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.detail || '暂时无法读取商品目录');
+        this.items = payload;
     },
 
     async loadInventory() {
