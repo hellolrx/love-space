@@ -70,7 +70,10 @@ async def _supabase_request(
             headers=headers,
             body=json.dumps(body) if body is not None else None,
         )
-        payload = await response.json() if response.status != 204 else None
+        try:
+            payload = await response.json()
+        except Exception:
+            payload = None
     except Exception as error:
         raise HTTPException(status_code=503, detail="暂时无法连接数据服务") from error
 
@@ -516,7 +519,7 @@ async def delete_store_item(item_id: int, request: Request):
     session, _ = await _get_authenticated_profile(request)
     aliases = ["Gogo", "Boy", "daddy", "Daddy"] if session["identity"] == "Gogo" else ["Gigi"]
     alias_filter = "in.(" + ",".join(aliases) + ")"
-    await _supabase_request(
+    rows = await _supabase_request(
         request,
         f"love_store?id=eq.{item_id}&owner={quote(alias_filter, safe='')}",
         method="DELETE",

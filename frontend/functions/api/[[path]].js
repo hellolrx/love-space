@@ -13,6 +13,9 @@ export async function onRequest({ request, env }) {
     const url = new URL(request.url);
     let allowedMethod = allowedMethods[url.pathname];
 
+    if (url.pathname === '/api/store/items' && request.method === 'POST') {
+        allowedMethod = 'POST';
+    }
     if (/^\/api\/store\/items\/\d+$/.test(url.pathname)) allowedMethod = 'DELETE';
     if (/^\/api\/store\/inventory\/\d+\/use$/.test(url.pathname)) allowedMethod = 'POST';
 
