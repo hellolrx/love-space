@@ -2,5 +2,6 @@
 
 set -euo pipefail
 
-uv self update
+python3 -m pip install --upgrade "uv>=0.13.4"
+uv --version
 uv run pywrangler deploy
