@@ -332,19 +332,20 @@ const App = {
         panel.classList.toggle('hidden');
     },
 
-    sendSOS(moodType) {
+    async sendSOS(moodType) {
         const contentMap = {
             'angry': '我现在很生气！😠',
             'sad': '我好难过... 😭',
             'sos': '紧急求救！需要抱抱！🆘'
         };
 
-        Calendar.addEvent({
+        const error = await Calendar.addEvent({
             content: contentMap[moodType],
             type: 'diary',
             mood: moodType
         });
 
+        if (error) return alert('发送失败：' + error.message);
         document.getElementById('mood-panel').classList.add('hidden');
     }
 };

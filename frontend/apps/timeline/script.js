@@ -1,4 +1,4 @@
-import { supabase } from '../home/js/supabase.js';
+import { requestApi } from '../shared/api.js';
 import { Auth } from '../home/js/auth.js';
 import { LoadingScreen } from '../load/loading.js?v=load-4';
 import {
@@ -56,13 +56,7 @@ export const Calendar = {
         const accessToken = Auth.getAccessToken();
         if (!accessToken) return;
 
-        const response = await fetch('/api/calendar-events', {
-            headers: { Authorization: `Bearer ${accessToken}` }
-        });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(payload.detail || '暂时无法读取日历事件');
-
-        this.events = payload;
+        this.events = await requestApi('/api/calendar-events');
         this.renderEvents();
     },
 
@@ -70,12 +64,7 @@ export const Calendar = {
         const accessToken = Auth.getAccessToken();
         if (!accessToken) return;
 
-        const response = await fetch('/api/schedules', {
-            headers: { Authorization: `Bearer ${accessToken}` }
-        });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(payload.detail || '暂时无法读取日程');
-        this.schedules = payload;
+        this.schedules = await requestApi('/api/schedules');
     },
 
     _getNickname(item) {
@@ -373,15 +362,11 @@ export const Calendar = {
         if (!titleEl || !titleEl.value.trim()) return alert('请输入日程内容');
 
         const dateISO = toLocalISO(this._currentModalDate);
-        const { error } = await supabase.from('schedules').insert({
-            title: titleEl.value.trim(),
-            date: dateISO,
-            label: labelEl?.value || 'date',
-            author_name: Auth.getMyNickname() || '未知',
-            completed: false
-        });
-
-        if (error) {
+        try {
+            await requestApi('/api/schedules', { method: 'POST', body: JSON.stringify({
+                title: titleEl.value.trim(), date: dateISO, label: labelEl?.value || 'date'
+            }) });
+        } catch (error) {
             alert('添加失败: ' + error.message);
             return;
         }
@@ -396,8 +381,11 @@ export const Calendar = {
     },
 
     async completeSchedule(id) {
-        const { error } = await supabase.from('schedules').update({ completed: true }).eq('id', id);
-        if (error) return alert('操作失败');
+        try {
+            await requestApi(`/api/schedules/${id}/complete`, { method: 'POST' });
+        } catch (error) {
+            return alert(`操作失败：${error.message}`);
+        }
 
         await this.loadSchedules();
         this.renderCalendarGrid();
@@ -412,26 +400,14 @@ export const Calendar = {
         document.getElementById('date-modal').classList.add('hidden');
     },
 
-    _buildInsertRow(extra) {
-        return { ...extra, author_name: Auth.getMyNickname() || '未知' };
-    },
-
     async checkDailyCheckIn() {
         const myName = Auth.getMyNickname();
         if (!myName) return;
-        const today = toLocalISO(new Date());
-
-        const { data } = await supabase
-            .from('calendar_events')
-            .select('id')
-            .eq('type', 'checkin')
-            .eq('date', today)
-            .eq('author_name', myName)
-            .limit(1);
+        const { checked_in: checkedIn } = await requestApi('/api/check-in');
 
         const box = document.getElementById('checkin-box');
         if (box) {
-            box.classList[(!data || data.length === 0) ? 'remove' : 'add']('hidden');
+            box.classList[checkedIn ? 'add' : 'remove']('hidden');
         }
     },
 
@@ -444,38 +420,19 @@ export const Calendar = {
         const checkinButton = checkinBox?.querySelector('button');
         if (checkinButton) checkinButton.disabled = true;
 
-        const today = toLocalISO(new Date());
-        const { data: existingCheckIn } = await supabase
-            .from('calendar_events')
-            .select('id')
-            .eq('type', 'checkin')
-            .eq('date', today)
-            .eq('author_name', myName)
-            .limit(1);
-
-        if (existingCheckIn && existingCheckIn.length > 0) {
+        try {
+            const result = await requestApi('/api/check-in', { method: 'POST' });
+            if (Auth.profile) Auth.profile.points = result.points;
             if (checkinBox) checkinBox.classList.add('hidden');
-            this.isCheckingIn = false;
-            return;
-        }
-
-        const { error: checkInError } = await supabase.from('calendar_events').insert(
-            this._buildInsertRow({ content: '完成了今日恋爱签到 ✨', date: today, type: 'checkin', mood: 'happy' })
-        );
-        if (checkInError) {
+            await this.loadEvents();
+            document.dispatchEvent(new CustomEvent('points-updated'));
+            if (result.awarded) this.playConfetti();
+        } catch (error) {
+            alert(`签到失败：${error.message}`);
+        } finally {
             this.isCheckingIn = false;
             if (checkinButton) checkinButton.disabled = false;
-            alert(`签到失败：${checkInError.message || '未知错误'}`);
-            return;
         }
-        await Auth.updatePoints(10);
-
-        const box = document.getElementById('checkin-box');
-        if (box) box.classList.add('hidden');
-
-        this.loadEvents();
-        document.dispatchEvent(new CustomEvent('points-updated'));
-        this.playConfetti();
     },
 
     async addEvent({ content, type = 'diary', mood = null }) {
@@ -487,11 +444,15 @@ export const Calendar = {
             finalContent = `「${qNick}: ${qText}」\n${content}`;
             this.clearQuote();
         }
-        const { error } = await supabase.from('calendar_events').insert(
-            this._buildInsertRow({ content: finalContent, date: toLocalISO(new Date()), type, mood })
-        );
-        if (!error) this.loadEvents();
-        return error;
+        try {
+            await requestApi('/api/calendar-events', {
+                method: 'POST', body: JSON.stringify({ content: finalContent, type, mood })
+            });
+            await this.loadEvents();
+            return null;
+        } catch (error) {
+            return error;
+        }
     },
 
     async sootheUser(eventId) {
@@ -503,11 +464,15 @@ export const Calendar = {
             return alert('不能哄自己哦~');
         }
 
-        await supabase.from('calendar_events').update({ mood: 'happy', content: '已经哄好啦 ❤️' }).eq('id', eventId);
-        await Auth.updatePoints(50);
-        alert('太棒了！奖励 50 熊熊币！');
-        this.loadEvents();
-        document.dispatchEvent(new CustomEvent('points-updated'));
+        try {
+            const result = await requestApi(`/api/calendar-events/${eventId}/soothe`, { method: 'POST' });
+            if (Auth.profile) Auth.profile.points = result.points;
+            alert(result.awarded ? '太棒了！奖励 50 熊熊币！' : '这条心情已经哄好啦');
+            await this.loadEvents();
+            document.dispatchEvent(new CustomEvent('points-updated'));
+        } catch (error) {
+            alert(`操作失败：${error.message}`);
+        }
     },
 
     _showMsgMenu(e, item) {
@@ -597,13 +562,14 @@ async function initTimelinePage() {
         toggleMoodPanel() {
             document.getElementById('mood-panel')?.classList.toggle('hidden');
         },
-        sendSOS(moodType) {
+        async sendSOS(moodType) {
             const contentMap = {
                 angry: '我现在很生气！😠',
                 sad: '我好难过... 😭',
                 sos: '紧急求救！需要抱抱！🆘'
             };
-            Calendar.addEvent({ content: contentMap[moodType], type: 'diary', mood: moodType });
+            const error = await Calendar.addEvent({ content: contentMap[moodType], type: 'diary', mood: moodType });
+            if (error) return alert('发送失败：' + error.message);
             document.getElementById('mood-panel')?.classList.add('hidden');
         }
     };

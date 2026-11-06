@@ -3,8 +3,7 @@ import { LoadingScreen } from '../load/loading.js?v=load-4';
 import {
     createMemoryAlbumEntry,
     fetchMemoryAlbumEntries,
-    formatAlbumDate,
-    uploadMemoryAlbumImage
+    formatAlbumDate
 } from './album-service.js';
 import { toChinaDateISO } from '../shared/china-time.js';
 import { escapeAttribute, escapeHtml } from '../shared/html.js';
@@ -30,7 +29,6 @@ const uploadModal = document.getElementById('upload-modal');
 const modalBackdrop = document.getElementById('modal-backdrop');
 
 let previewObjectUrl = '';
-let currentUserKey = '';
 let currentAuthorName = '';
 let imageObserver = null;
 
@@ -249,14 +247,6 @@ async function loadAlbumEntries() {
     }
 }
 
-function deriveCurrentUserKey() {
-    if (Auth.user?.id) return String(Auth.user.id);
-    if (Auth.user?.username) return String(Auth.user.username);
-    if (Auth.user?.email) return String(Auth.user.email);
-    if (Auth.profile?.nickname) return String(Auth.profile.nickname);
-    return `guest-${Date.now()}`;
-}
-
 async function ensureLogin() {
     const isLoggedIn = await Auth.init();
     if (!isLoggedIn) {
@@ -268,7 +258,6 @@ async function ensureLogin() {
         return false;
     }
 
-    currentUserKey = deriveCurrentUserKey();
     currentAuthorName = Auth.getMyNickname() || 'Love Space 用户';
     authorBadge.textContent = `当前上传：${currentAuthorName}`;
     return true;
@@ -309,14 +298,10 @@ async function handleSubmit() {
             setStatus('正在保存...');
         }
 
-        const imagePath = await uploadMemoryAlbumImage(uploadFile, currentUserKey);
         await createMemoryAlbumEntry({
-            imagePath,
+            file: uploadFile,
             shotDate,
-            caption,
-            authorName: currentAuthorName,
-            createdBy: currentUserKey,
-            isPublished: true
+            caption
         });
 
         resetUploadForm();

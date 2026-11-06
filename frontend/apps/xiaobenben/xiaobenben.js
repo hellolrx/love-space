@@ -1,5 +1,4 @@
 import { Auth } from '../home/js/auth.js';
-import { supabase } from '../home/js/supabase.js';
 import { LoadingScreen } from '../load/loading.js?v=load-4';
 import {
     createSharedNote,
@@ -11,7 +10,7 @@ import { escapeAttribute, escapeHtml } from '../shared/html.js';
 const state = {
     notes: [],
     currentNickname: '',
-    realtimeChannel: null,
+    syncTimer: null,
     isRefreshing: false,
     saveTimers: new Map()
 };
@@ -309,29 +308,22 @@ async function refreshNotes() {
     }
 }
 
-function setupRealtimeSync() {
-    if (state.realtimeChannel) return;
-
-    state.realtimeChannel = supabase
-        .channel('shared-notes-realtime')
-        .on('postgres_changes', {
-            event: '*',
-            schema: 'public',
-            table: 'shared_notes'
-        }, async () => {
-            try {
-                await refreshNotes();
-            } catch (error) {
-                console.error('小笨笨实时同步失败：', error);
-            }
-        })
-        .subscribe();
+function setupNoteSync() {
+    if (state.syncTimer) return;
+    state.syncTimer = setInterval(async () => {
+        if (document.hidden || state.saveTimers.size || els.notesList.contains(document.activeElement)) return;
+        try {
+            await refreshNotes();
+        } catch (error) {
+            console.error('小笨笨同步失败：', error);
+        }
+    }, 10000);
 }
 
-function teardownRealtimeSync() {
-    if (!state.realtimeChannel) return;
-    supabase.removeChannel(state.realtimeChannel);
-    state.realtimeChannel = null;
+function teardownNoteSync() {
+    if (!state.syncTimer) return;
+    clearInterval(state.syncTimer);
+    state.syncTimer = null;
 }
 
 function bindEvents() {
@@ -360,10 +352,10 @@ async function init() {
     const ready = await ensureLogin();
     if (!ready) return;
     await refreshNotes();
-    setupRealtimeSync();
+    setupNoteSync();
 }
 
-window.addEventListener('beforeunload', teardownRealtimeSync);
+window.addEventListener('beforeunload', teardownNoteSync);
 
 LoadingScreen.withLoading(init).catch((error) => {
     console.error(error);

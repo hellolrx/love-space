@@ -1,5 +1,4 @@
 import { CONFIG } from './config.js';
-import { supabase } from './supabase.js';
 import { isSameChinaDay } from '../../shared/china-time.js';
 
 const LEGACY_USERNAME_BY_IDENTITY = {
@@ -125,21 +124,6 @@ export const Auth = {
         this.profile = await requestAuth('/api/profile', {
             headers: { Authorization: `Bearer ${accessToken}` }
         });
-    },
-
-    async updatePoints(amount) {
-        if (!this.profile) return;
-        const nickname = this.profile.nickname || this.getMyNickname();
-        if (!nickname) return;
-
-        this.profile.points = (this.profile.points || 0) + amount;
-
-        await supabase
-            .from('profiles')
-            .update({ points: this.profile.points })
-            .eq('nickname', nickname);
-
-        return this.profile.points;
     },
 
     async logout() {

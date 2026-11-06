@@ -4,26 +4,24 @@ import hashlib
 import hmac
 import json
 import time
-from datetime import datetime, timedelta, timezone
+import logging
+from datetime import date, datetime, timedelta, timezone
 from typing import Literal
 from urllib.parse import quote
+from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from workers import asgi, fetch
 
 app = FastAPI()
 SESSION_TTL_SECONDS = 24 * 60 * 60
-
-
-class ChatMessage(BaseModel):
-    role: str
-    content: str
-
-
-class ChatRequest(BaseModel):
-    messages: list[ChatMessage] = Field(min_length=1)
+MAX_ALBUM_IMAGE_BYTES = 5 * 1024 * 1024
+ALBUM_IMAGE_TYPES = {
+    "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp",
+    "image/gif": "gif", "image/avif": "avif", "image/heic": "heic", "image/heif": "heif",
+}
 
 
 class LoginRequest(BaseModel):
@@ -39,6 +37,45 @@ class StoreItemCreateRequest(BaseModel):
 
 class StorePurchaseRequest(BaseModel):
     item_id: int = Field(gt=0)
+
+
+class ScheduleCreateRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=500)
+    date: date
+    label: Literal["date", "anniversary", "todo", "reminder"] = "date"
+
+
+class NoteCreateRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=10000)
+    content: str = Field(default="", max_length=20000)
+
+
+class NoteUpdateRequest(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=10000)
+    content: str | None = Field(default=None, max_length=20000)
+    status: Literal["active", "done"] | None = None
+    is_pinned: bool | None = None
+
+
+class EventCreateRequest(BaseModel):
+    content: str = Field(min_length=1, max_length=20000)
+    type: Literal["diary"] = "diary"
+    mood: Literal["happy", "angry", "sad", "sos"] | None = None
+
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class ChatRequest(BaseModel):
+    messages: list[ChatMessage] = Field(min_length=1)
+
+
+def _first_row(rows):
+    if not isinstance(rows, list) or not rows:
+        raise HTTPException(status_code=404, detail="记录不存在")
+    return rows[0]
 
 
 def _binding(env, name: str, default: str = "") -> str:
@@ -416,7 +453,7 @@ async def cors_middleware(request: Request, call_next):
 
     if origin in allowed_origins:
         response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PATCH, DELETE, OPTIONS"
         response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
         response.headers["Access-Control-Max-Age"] = "86400"
         response.headers["Vary"] = "Origin"
@@ -620,6 +657,218 @@ async def use_store_item(inventory_id: int, request: Request):
         "event_synced": event_synced,
         "note_synced": note_synced,
     }
+
+
+@app.post("/api/schedules")
+async def create_schedule(body: ScheduleCreateRequest, request: Request):
+    _, profile = await _get_authenticated_profile(request)
+    title = body.title.strip()
+    if not title:
+        raise HTTPException(status_code=422, detail="日程内容不能为空")
+    rows = await _supabase_request(
+        request, "schedules", method="POST",
+        body={"title": title, "date": body.date.isoformat(), "label": body.label,
+              "author_name": profile["nickname"], "completed": False},
+        prefer="return=representation",
+    )
+    return _first_row(rows)
+
+
+@app.post("/api/schedules/{schedule_id}/complete")
+async def complete_schedule(schedule_id: int, request: Request):
+    _get_session_payload(request)
+    return _first_row(await _supabase_request(
+        request, f"schedules?id=eq.{schedule_id}", method="PATCH",
+        body={"completed": True}, prefer="return=representation",
+    ))
+
+
+@app.get("/api/notes")
+async def notes(request: Request):
+    _get_session_payload(request)
+    return await _supabase_request(
+        request, "shared_notes?select=*&order=is_pinned.desc,updated_at.desc,id.desc",
+    )
+
+
+@app.post("/api/notes")
+async def create_note(body: NoteCreateRequest, request: Request):
+    _, profile = await _get_authenticated_profile(request)
+    title = body.title.strip()
+    if not title:
+        raise HTTPException(status_code=422, detail="便签内容不能为空")
+    return _first_row(await _supabase_request(
+        request, "shared_notes", method="POST",
+        body={"title": title, "content": body.content, "note_type": "note", "status": "active",
+              "source_type": "manual", "created_by_nickname": profile["nickname"],
+              "updated_by_nickname": profile["nickname"]}, prefer="return=representation",
+    ))
+
+
+@app.patch("/api/notes/{note_id}")
+async def update_note(note_id: int, body: NoteUpdateRequest, request: Request):
+    _, profile = await _get_authenticated_profile(request)
+    changes = body.model_dump(exclude_none=True)
+    if "title" in changes and not changes["title"].strip():
+        raise HTTPException(status_code=422, detail="便签内容不能为空")
+    changes.update(updated_by_nickname=profile["nickname"], updated_at=datetime.now(timezone.utc).isoformat())
+    return _first_row(await _supabase_request(
+        request, f"shared_notes?id=eq.{note_id}", method="PATCH",
+        body=changes, prefer="return=representation",
+    ))
+
+
+@app.delete("/api/notes/{note_id}")
+async def delete_note(note_id: int, request: Request):
+    _get_session_payload(request)
+    _first_row(await _supabase_request(
+        request, f"shared_notes?id=eq.{note_id}", method="DELETE", prefer="return=representation",
+    ))
+    return {"deleted": True}
+
+
+@app.get("/api/check-in")
+async def check_in_status(request: Request):
+    session, profile = await _get_authenticated_profile(request)
+    today = (datetime.now(timezone.utc) + timedelta(hours=8)).date().isoformat()
+    nickname = quote(profile["nickname"], safe="")
+    rows = await _supabase_request(
+        request, f"calendar_events?select=id&type=eq.checkin&date=eq.{today}"
+        f"&or=(author_id.eq.{session['profile_id']},author_name.eq.{nickname})&limit=1",
+    )
+    return {"checked_in": bool(rows)}
+
+
+@app.post("/api/check-in")
+async def check_in(request: Request):
+    session = _get_session_payload(request)
+    return await _supabase_request(
+        request, "rpc/app_check_in", method="POST", body={"p_profile_id": session["profile_id"]},
+    )
+
+
+@app.post("/api/calendar-events")
+async def create_event(body: EventCreateRequest, request: Request):
+    session, profile = await _get_authenticated_profile(request)
+    content = body.content.strip()
+    if not content:
+        raise HTTPException(status_code=422, detail="日记内容不能为空")
+    today = (datetime.now(timezone.utc) + timedelta(hours=8)).date().isoformat()
+    return _first_row(await _supabase_request(
+        request, "calendar_events", method="POST",
+        body={"date": today, "content": content, "type": body.type, "mood": body.mood,
+              "author_id": session["profile_id"], "author_name": profile["nickname"]},
+        prefer="return=representation",
+    ))
+
+
+@app.post("/api/calendar-events/{event_id}/soothe")
+async def soothe_event(event_id: int, request: Request):
+    session = _get_session_payload(request)
+    return await _supabase_request(
+        request, "rpc/app_soothe_event", method="POST",
+        body={"p_profile_id": session["profile_id"], "p_event_id": event_id},
+    )
+
+
+@app.get("/api/album/entries")
+async def album_entries(request: Request, recent: bool = False, limit: int = Query(default=1000, ge=1, le=1000)):
+    _get_session_payload(request)
+    order = "shot_date.desc,created_at.desc,id.desc" if recent else "shot_date.asc,sort_order.asc.nullslast,created_at.asc,id.asc"
+    return await _supabase_request(
+        request, f"memory_album_entries?select=*&is_published=eq.true&order={order}&limit={limit}",
+    )
+
+
+@app.post("/api/album/entries")
+async def create_album_entry(request: Request, shot_date: date, caption: str = Query(min_length=1, max_length=2000)):
+    session, profile = await _get_authenticated_profile(request)
+    caption = caption.strip()
+    if not caption:
+        raise HTTPException(status_code=422, detail="请填写照片文案")
+    content_type = request.headers.get("content-type", "").split(";", 1)[0].lower()
+    if content_type not in ALBUM_IMAGE_TYPES:
+        raise HTTPException(status_code=415, detail="请选择 JPG、PNG、WebP、GIF、AVIF 或 HEIC 图片")
+    image = bytearray()
+    async for chunk in request.stream():
+        if len(image) + len(chunk) > MAX_ALBUM_IMAGE_BYTES:
+            raise HTTPException(status_code=413, detail="图片不能超过 5MB，请压缩后再上传")
+        image.extend(chunk)
+    if not image:
+        raise HTTPException(status_code=422, detail="图片内容不能为空")
+    image_path = f"{session['profile_id']}/{uuid4().hex}.{ALBUM_IMAGE_TYPES[content_type]}"
+    project_url, headers = _supabase_headers(request)
+    headers["Content-Type"] = content_type
+    headers["Cache-Control"] = "31536000"
+    try:
+        uploaded = await fetch(
+            f"{project_url}/storage/v1/object/memory-album/{image_path}",
+            method="POST", headers=headers, body=bytes(image),
+        )
+    except Exception as error:
+        raise HTTPException(status_code=503, detail="暂时无法上传照片") from error
+    if uploaded.status < 200 or uploaded.status >= 300:
+        raise HTTPException(status_code=503, detail="照片上传失败，请稍后重试")
+    try:
+        return _first_row(await _supabase_request(
+            request, "memory_album_entries", method="POST",
+            body={"image_path": image_path, "shot_date": shot_date.isoformat(), "caption": caption,
+                  "author_name": profile["nickname"], "created_by": session["profile_id"], "is_published": True},
+            prefer="return=representation",
+        ))
+    except Exception:
+        _, cleanup_headers = _supabase_headers(request)
+        try:
+            cleanup = await fetch(
+                f"{project_url}/storage/v1/object/memory-album", method="DELETE",
+                headers=cleanup_headers, body=json.dumps({"prefixes": [image_path]}),
+            )
+            if cleanup.status >= 300:
+                logging.warning("Album upload cleanup failed: %s", image_path)
+        except Exception:
+            logging.warning("Album upload cleanup unavailable: %s", image_path)
+        raise
+
+
+@app.get("/api/album/images/{image_path:path}")
+async def album_image(image_path: str, request: Request):
+    if not image_path or any(part in {"", ".", ".."} for part in image_path.split("/")):
+        raise HTTPException(status_code=404, detail="照片不存在")
+    rows = await _supabase_request(
+        request, "memory_album_entries?select=id&is_published=eq.true&image_path=eq."
+        + quote(image_path, safe="") + "&limit=1",
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail="照片不存在")
+    project_url, headers = _supabase_headers(request)
+    try:
+        upstream = await fetch(
+            f"{project_url}/storage/v1/object/memory-album/{quote(image_path, safe='/')}", headers=headers,
+        )
+    except Exception as error:
+        raise HTTPException(status_code=503, detail="暂时无法读取照片") from error
+    if upstream.status != 200:
+        raise HTTPException(status_code=404 if upstream.status == 404 else 503, detail="暂时无法读取照片")
+
+    async def image_chunks():
+        reader = upstream.body.getReader()
+        try:
+            while True:
+                chunk = await reader.read()
+                if chunk.done:
+                    break
+                yield bytes(chunk.value.to_py())
+        finally:
+            await reader.cancel()
+            reader.releaseLock()
+
+    media_type = upstream.headers.get("content-type", "application/octet-stream")
+    if media_type.split(";", 1)[0].lower() not in ALBUM_IMAGE_TYPES:
+        media_type = "application/octet-stream"
+    return StreamingResponse(
+        image_chunks(), media_type=media_type,
+        headers={"Cache-Control": "public, max-age=3600", "X-Content-Type-Options": "nosniff"},
+    )
 
 
 @app.post("/api/chat")
