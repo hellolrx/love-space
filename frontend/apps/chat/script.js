@@ -1,15 +1,15 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const authData = JSON.parse(localStorage.getItem('love-space-auth') || '{}');
+    let authData;
+    try {
+        authData = JSON.parse(localStorage.getItem('love-space-auth') || '{}') || {};
+    } catch {
+        authData = {};
+    }
     const isToday = authData.loginDate && new Date(authData.loginDate).toDateString() === new Date().toDateString();
-    if (!authData.loggedIn || !isToday) {
+    if (!authData.loggedIn || !isToday || !authData.accessToken) {
         document.body.innerHTML = '<div style="display:flex;height:100vh;height:100dvh;align-items:center;justify-content:center;background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;flex-direction:column;gap:20px;font-family:sans-serif;"><div style="font-size:48px;">🔒</div><p style="color:#f472b6;font-size:1.1rem;">请先登录 Love Space</p><a href="../../" style="color:#f472b6;background:rgba(244,114,182,0.15);padding:12px 32px;border-radius:12px;text-decoration:none;border:1px solid rgba(244,114,182,0.3);transition:all 0.3s;" onmouseover="this.style.background=\'rgba(244,114,182,0.3)\'" onmouseout="this.style.background=\'rgba(244,114,182,0.15)\'">去登录</a></div>';
         return;
     }
-
-    const API_CONFIG = {
-        workerUrl: "https://chat.rxliang.cc.cd",
-        model: "glm-4.7-flash"
-    };
 
     // DOM Elements
     const messageInput = document.getElementById('message-input');
@@ -43,11 +43,13 @@ document.addEventListener('DOMContentLoaded', () => {
             // Disable send button
             sendBtn.disabled = true;
 
-            // Call Worker API (不再需要 apiKey！)
-            const response = await fetch(API_CONFIG.workerUrl, {
+            const accessToken = JSON.parse(localStorage.getItem('love-space-auth') || '{}')?.accessToken;
+            if (!accessToken) throw new Error('请先登录 Love Space');
+            const response = await fetch('/api/chat', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${accessToken}`
                 },
                 body: JSON.stringify({
                     messages: [
@@ -56,12 +58,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     ]
                 })
             });
-
-            if (!response.ok) {
-                throw new Error(`API Error: ${response.status}`);
-            }
-
             const data = await response.json();
+            if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : `API Error: ${response.status}`);
             const reply = data.choices[0].message.content;
 
             // Typewriter effect for response
@@ -70,7 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error('Error:', error);
-            botTextP.textContent = "哎呀，我们的连接好像断了一下... 💔 (请检查本地API是否运行)";
+            botTextP.textContent = `哎呀，我们的连接好像断了一下... 💔 (${error.message})`;
             botTextP.style.color = "red";
         } finally {
             sendBtn.disabled = false;

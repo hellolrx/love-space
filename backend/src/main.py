@@ -1,4 +1,5 @@
 import base64
+import asyncio
 import hashlib
 import hmac
 import json
@@ -14,6 +15,15 @@ from workers import asgi, fetch
 
 app = FastAPI()
 SESSION_TTL_SECONDS = 24 * 60 * 60
+
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class ChatRequest(BaseModel):
+    messages: list[ChatMessage] = Field(min_length=1)
 
 
 class LoginRequest(BaseModel):
@@ -610,6 +620,32 @@ async def use_store_item(inventory_id: int, request: Request):
         "event_synced": event_synced,
         "note_synced": note_synced,
     }
+
+
+@app.post("/api/chat")
+async def chat(body: ChatRequest, request: Request):
+    _session, _profile = await _get_authenticated_profile(request)
+    env = request.scope.get("env")
+    api_key = _binding(env, "ZHIPU_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="聊天服务尚未配置")
+    try:
+        async with asyncio.timeout(25):
+            upstream = await fetch(
+                "https://open.bigmodel.cn/api/paas/v4/chat/completions", method="POST",
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+                body=json.dumps({
+                    "model": "glm-4-flash",
+                    "messages": [message.model_dump() for message in body.messages],
+                    "stream": False, "temperature": 0.8, "max_tokens": 2000,
+                }),
+            )
+            payload = await upstream.json()
+    except Exception as error:
+        raise HTTPException(status_code=503, detail="暂时无法连接聊天服务") from error
+    if upstream.status < 200 or upstream.status >= 300:
+        raise HTTPException(status_code=upstream.status, detail="聊天服务暂时不可用")
+    return JSONResponse(content=payload, status_code=200)
 
 
 Default = asgi.entrypoint(app)
