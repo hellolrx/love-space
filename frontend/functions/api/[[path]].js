@@ -2,6 +2,7 @@ const allowedMethods = {
     '/api/auth/login': 'POST',
     '/api/auth/session': 'GET',
     '/api/profile': 'GET',
+    '/api/chat': 'POST',
     '/api/schedules': 'GET',
     '/api/calendar-events': 'GET',
     '/api/store/items': 'GET',
